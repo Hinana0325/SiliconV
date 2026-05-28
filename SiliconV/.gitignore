@@ -1,0 +1,19 @@
+# Build
+build/
+*.o
+*.elf
+*.bin
+*.a
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
