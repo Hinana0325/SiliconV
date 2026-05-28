@@ -52,6 +52,9 @@
 - [x] ION / DMABUF heap configuration
 - [x] Kernel config (android.config)
 - [x] SELinux policy (siliconv.te)
+- [x] Android boot image parser (v0-v4)
+- [x] VM Machine main loop (MMIO dispatch)
+- [x] Kernel build script (AOSP common kernel)
 - [ ] Build Android kernel from AOSP common kernel
 - [ ] Kernel boots with android.config applied
 - [ ] Binder, ashmem, ION devices appear in /dev
