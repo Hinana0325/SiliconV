@@ -72,6 +72,15 @@ target_include_directories(sv_virtio_blk PUBLIC
 )
 
 # ──────────────────────────────────────────────
+# Android Libraries (headers only, kernel-side code)
+# ──────────────────────────────────────────────
+add_library(sv_android_headers INTERFACE)
+target_include_directories(sv_android_headers INTERFACE
+    ${CMAKE_SOURCE_DIR}/android/binder
+    ${CMAKE_SOURCE_DIR}/android/shims
+)
+
+# ──────────────────────────────────────────────
 # Hypervisor Abstraction
 # ──────────────────────────────────────────────
 add_library(sv_hv STATIC

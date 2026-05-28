@@ -1,0 +1,79 @@
+# SiliconV — SELinux Policy
+#
+# Minimal SELinux policy for Android on SiliconV.
+# Defines domains and types for virtual hardware.
+#
+# In permissive mode (default), violations are logged but not enforced.
+# Switch to enforcing after validating all access patterns.
+
+# ── SiliconV Device Types ────────────────────────
+
+# Virtual block device (virtio-blk)
+type sv_block_device, dev_type;
+
+# Virtual GPU (virtio-gpu)
+type sv_gpu_device, dev_type;
+
+# Virtual input (virtio-input)
+type sv_input_device, dev_type;
+
+# Virtual console (virtio-console)
+type sv_console_device, dev_type;
+
+# Binder devices
+type sv_binder_device, dev_type;
+type sv_hwbinder_device, dev_type;
+type sv_vndbinder_device, dev_type;
+
+# Ashmem
+type sv_ashmem_device, dev_type;
+
+# ION / DMABUF
+type sv_ion_device, dev_type;
+
+# ── Device Node Labels ───────────────────────────
+
+# Block device
+/dev/vda        u:object_r:sv_block_device:s0
+/dev/vdb        u:object_r:sv_block_device:s0
+
+# GPU
+/dev/dri/*      u:object_r:sv_gpu_device:s0
+
+# Input
+/dev/input/*    u:object_r:sv_input_device:s0
+
+# Console
+/dev/vport*     u:object_r:sv_console_device:s0
+
+# Binder
+/dev/binder     u:object_r:sv_binder_device:s0
+/dev/hwbinder   u:object_r:sv_hwbinder_device:s0
+/dev/vndbinder  u:object_r:sv_vndbinder_device:s0
+
+# Ashmem
+/dev/ashmem     u:object_r:sv_ashmem_device:s0
+
+# ION
+/dev/ion        u:object_r:sv_ion_device:s0
+
+# ── Domain Access Rules ──────────────────────────
+
+# Allow init to create device nodes
+allow init sv_block_device:blk_file { create open read write ioctl getattr };
+allow init sv_gpu_device:chr_file { create open read write ioctl getattr };
+allow init sv_binder_device:chr_file { create open read write ioctl getattr };
+allow init sv_ashmem_device:chr_file { create open read write ioctl getattr };
+allow init sv_ion_device:chr_file { create open read write ioctl getattr };
+
+# Allow system_server to use binder
+allow system_server sv_binder_device:chr_file { open read write ioctl };
+allow system_server sv_hwbinder_device:chr_file { open read write ioctl };
+
+# Allow surfaceflinger to use GPU and HWC
+allow surfaceflinger sv_gpu_device:chr_file { open read write ioctl };
+allow surfaceflinger sv_ion_device:chr_file { open read write ioctl };
+
+# Allow all apps to use binder and ashmem
+allow untrusted_app sv_binder_device:chr_file { open read write ioctl };
+allow untrusted_app sv_ashmem_device:chr_file { open read write ioctl };
