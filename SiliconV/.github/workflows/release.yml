@@ -1,0 +1,153 @@
+# SiliconV — Release Workflow
+#
+# Triggered when a tag is pushed (v*).
+# Builds release binaries for Linux x86_64 and ARM64.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # ── Build Linux x86_64 ─────────────────────────
+  release-linux-x86_64:
+    name: Linux x86_64
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc g++
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp build/siliconv release/siliconv-linux-x86_64
+          cp -r spec/ release/spec/
+          cp README.md LICENSE release/ 2>/dev/null || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: siliconv-linux-x86_64
+          path: release/
+
+  # ── Build Linux ARM64 (cross-compile) ──────────
+  release-linux-arm64:
+    name: Linux ARM64
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Configure
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
+            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++
+
+      - name: Build
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp build/siliconv release/siliconv-linux-arm64
+          cp build/boot_stub.bin release/ 2>/dev/null || true
+          cp -r spec/ release/spec/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: siliconv-linux-arm64
+          path: release/
+
+  # ── Build ARM64 Boot Stub ──────────────────────
+  release-boot-stub:
+    name: Boot Stub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Build
+        run: |
+          mkdir -p build
+          aarch64-linux-gnu-as -o build/boot_stub.o core/vm/boot_stub.S
+          aarch64-linux-gnu-ld -T core/vm/boot_stub.ld -o build/boot_stub.elf build/boot_stub.o
+          aarch64-linux-gnu-objcopy -O binary build/boot_stub.elf build/boot_stub.bin
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: siliconv-boot-stub
+          path: build/boot_stub.bin
+
+  # ── Create GitHub Release ──────────────────────
+  create-release:
+    name: Create Release
+    needs: [release-linux-x86_64, release-linux-arm64, release-boot-stub]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Package release
+        run: |
+          mkdir -p release
+          cp -r artifacts/siliconv-linux-x86_64/* release/
+          cp artifacts/siliconv-boot-stub/boot_stub.bin release/ 2>/dev/null || true
+
+          # Create tarballs
+          tar czf siliconv-linux-x86_64.tar.gz -C artifacts/siliconv-linux-x86_64 .
+          tar czf siliconv-linux-arm64.tar.gz -C artifacts/siliconv-linux-arm64 .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            siliconv-linux-x86_64.tar.gz
+            siliconv-linux-arm64.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}

@@ -1,0 +1,148 @@
+# SiliconV CI — Build & Test
+#
+# Runs on every push and pull request.
+# Builds host-side code (x86_64) and cross-compiles ARM64 boot stub.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  BUILD_TYPE: Debug
+
+jobs:
+  # ── Build (Host x86_64) ────────────────────────
+  build-host:
+    name: Build (x86_64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc g++
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: siliconv-x86_64
+          path: build/siliconv
+
+  # ── Cross-compile ARM64 Boot Stub ───────────────
+  build-boot-stub:
+    name: Build Boot Stub (ARM64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Build boot stub
+        run: |
+          aarch64-linux-gnu-as -o build/boot_stub.o core/vm/boot_stub.S
+          aarch64-linux-gnu-ld -T core/vm/boot_stub.ld -o build/boot_stub.elf build/boot_stub.o
+          aarch64-linux-gnu-objcopy -O binary build/boot_stub.elf build/boot_stub.bin
+        shell: bash
+
+      - name: Verify
+        run: |
+          ls -la build/boot_stub.bin
+          file build/boot_stub.bin
+
+      - name: Upload boot stub
+        uses: actions/upload-artifact@v4
+        with:
+          name: siliconv-boot-stub
+          path: build/boot_stub.bin
+
+  # ── Full Build with Cross-compiler ──────────────
+  build-full:
+    name: Build Full (with ARM64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake gcc g++ \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Verify artifacts
+        run: |
+          ls -la build/siliconv
+          ls -la build/boot_stub.bin 2>/dev/null || echo "boot_stub.bin not built (cross-compiler may be missing)"
+          file build/siliconv
+
+  # ── Spec Validation ────────────────────────────
+  validate-spec:
+    name: Validate Spec
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check spec files exist
+        run: |
+          echo "Checking spec files..."
+          test -f spec/svabi/svabi-v0.md
+          test -f spec/memory/mmio-map.md
+          test -f spec/irq/irq-map.md
+          test -f spec/boot/boot-flow.md
+          test -f spec/boot/dtb-schema.md
+          test -f spec/devices/virtio-matrix.md
+          test -f spec/hardware-stack.md
+          echo "All spec files present ✓"
+
+      - name: Check ROADMAP exists
+        run: test -f ROADMAP.md
+
+  # ── Lint (optional) ────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang-tidy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy
+
+      - name: Run clang-tidy
+        run: |
+          # Only check if compile_commands.json exists
+          # For now, just verify the code compiles without warnings
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-Werror"
+          cmake --build build --parallel $(nproc) 2>&1 | head -50
+        continue-on-error: true

@@ -1,0 +1,105 @@
+# SiliconV — Android Kernel Build
+#
+# Builds the Android Common Kernel 6.6 for ARM64.
+# Triggered manually or on kernel config changes.
+
+name: Build Kernel
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_branch:
+        description: 'Kernel branch'
+        required: true
+        default: 'android14-6.6'
+        type: choice
+        options:
+          - android14-6.6
+          - android14-6.1
+          - android-mainline
+  push:
+    paths:
+      - 'kernel/configs/**'
+
+env:
+  KERNEL_BRANCH: android14-6.6
+
+jobs:
+  build-kernel:
+    name: Build Android Kernel
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            bc bison flex libssl-dev libelf-dev \
+            cpio
+
+      - name: Set kernel branch
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "KERNEL_BRANCH=${{ github.event.inputs.kernel_branch }}" >> $GITHUB_ENV
+          fi
+
+      - name: Clone kernel
+        run: |
+          git clone --depth=1 -b ${{ env.KERNEL_BRANCH }} \
+            https://android.googlesource.com/kernel/common \
+            kernel-src
+
+      - name: Apply defconfig
+        run: |
+          cd kernel-src
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
+
+      - name: Merge SiliconV config
+        run: |
+          cd kernel-src
+          cp $GITHUB_WORKSPACE/kernel/configs/android.config /tmp/android.config
+          scripts/kconfig/merge_config.sh -m .config /tmp/android.config
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+
+      - name: Build kernel
+        run: |
+          cd kernel-src
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
+
+      - name: Build modules
+        run: |
+          cd kernel-src
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules -j$(nproc)
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp kernel-src/arch/arm64/boot/Image release/Image
+          cp kernel-src/arch/arm64/boot/dts/*.dtb release/ 2>/dev/null || true
+
+          # Package modules
+          cd kernel-src
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+            INSTALL_MOD_PATH=$GITHUB_WORKSPACE/release/modules \
+            modules_install
+
+      - name: Upload kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: siliconv-kernel-${{ env.KERNEL_BRANCH }}
+          path: release/
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## Kernel Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${{ env.KERNEL_BRANCH }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Arch: ARM64" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`Image\`" >> $GITHUB_STEP_SUMMARY
+          ls -lh release/Image >> $GITHUB_STEP_SUMMARY
