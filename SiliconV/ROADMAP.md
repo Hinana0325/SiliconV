@@ -16,16 +16,16 @@
 
 **Goal:** Print "Hello SiliconV" from a guest VM.
 
-- [ ] KVM hypervisor backend (Linux)
-- [ ] Minimal VM creation (ARM64, 1 CPU, 256M RAM)
-- [ ] PL011 UART emulation
-- [ ] GICv3 emulation (minimal)
-- [ ] Guest physical memory setup
-- [ ] Direct kernel boot
-- [ ] DTB generator
-- [ ] UART console output: `Hello SiliconV`
+- [x] KVM hypervisor backend (Linux)
+- [x] Minimal VM creation (ARM64, 1 CPU, 256M RAM)
+- [x] PL011 UART emulation
+- [x] GICv3 emulation (minimal)
+- [x] Guest physical memory setup
+- [x] Direct kernel boot
+- [x] DTB generator
+- [x] UART console output: `Hello SiliconV`
 
-**Milestone:** Guest kernel boots, prints to UART.
+**Milestone:** ✅ Guest kernel boots, prints to UART. (2026-05-29)
 
 ## Phase 2: Linux Boot
 
