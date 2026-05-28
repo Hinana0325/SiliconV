@@ -1,0 +1,54 @@
+# SiliconV — OpenCode GitHub Integration
+#
+# 在 Issue/PR 评论中使用 /oc 或 /opencode 触发 AI 助手。
+# 安装: opencode github install
+
+name: opencode
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, edited]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: "0 9 * * 1"  # 每周一 UTC 9:00
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'OpenCode prompt'
+        required: true
+
+jobs:
+  opencode:
+    if: |
+      github.event_name != 'issue_comment' ||
+      contains(github.event.comment.body, '/oc') ||
+      contains(github.event.comment.body, '/opencode')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run OpenCode
+        uses: anomalyco/opencode/github@latest
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          model: anthropic/claude-sonnet-4-20250514
+          prompt: |
+            You are working on SiliconV, a virtual phone hardware platform.
+            The project uses C, CMake, and targets ARM64 (Android Common Kernel 6.6).
+            Key specs are in spec/ directory. Follow AOSP-first approach.
