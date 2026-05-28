@@ -24,6 +24,19 @@ Version is embedded in:
 - DTB `compatible` string: `"siliconv,vm-v0"`
 - BootROM banner: `"SiliconV BootROM v0.1"`
 
+## Frozen Hardware Stack
+
+| Layer | Choice |
+|-------|--------|
+| Host Hypervisor | KVM (Linux), HVF (macOS) |
+| Guest Kernel | Android Common Kernel 6.6 |
+| GPU | VirGL (virglrenderer via Mesa) |
+| Storage | Virtio-BLK |
+| Network | Virtio-NET |
+| Display | virtio-gpu + minigbm + drm_hwcomposer |
+
+See `spec/hardware-stack.md` for full details.
+
 ## Guest Architecture
 
 | Property | Value |
