@@ -21,14 +21,54 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # ──────────────────────────────────────────────
-# PL011 UART Emulation
+# Core Libraries
 # ──────────────────────────────────────────────
+
+# GICv3 emulation
+add_library(sv_gic STATIC
+    core/irq/gic.c
+)
+target_include_directories(sv_gic PUBLIC core/irq)
+
+# PSCI
+add_library(sv_psci STATIC
+    core/object/psci.c
+)
+target_include_directories(sv_psci PUBLIC core/object)
+
+# DTB generator
+add_library(sv_dtb STATIC
+    core/memory/dtb.c
+)
+target_include_directories(sv_dtb PUBLIC core/memory)
+
+# ──────────────────────────────────────────────
+# Device Libraries
+# ──────────────────────────────────────────────
+
+# PL011 UART
 add_library(sv_uart STATIC
     devices/uart/pl011.c
 )
 target_include_directories(sv_uart PUBLIC
     ${CMAKE_SOURCE_DIR}/devices/uart
-    ${CMAKE_SOURCE_DIR}/hypervisor/abstraction
+)
+
+# Virtio MMIO transport
+add_library(sv_virtio STATIC
+    devices/transport/virtio_mmio.c
+)
+target_include_directories(sv_virtio PUBLIC
+    ${CMAKE_SOURCE_DIR}/devices/transport
+)
+
+# Virtio-Block
+add_library(sv_virtio_blk STATIC
+    devices/virtio-blk/virtio_blk.c
+)
+target_include_directories(sv_virtio_blk PUBLIC
+    ${CMAKE_SOURCE_DIR}/devices/virtio-blk
+    ${CMAKE_SOURCE_DIR}/devices/transport
 )
 
 # ──────────────────────────────────────────────
@@ -62,7 +102,12 @@ add_executable(siliconv
     frontend/cli/main.c
 )
 target_link_libraries(siliconv
+    sv_gic
+    sv_psci
+    sv_dtb
     sv_uart
+    sv_virtio
+    sv_virtio_blk
     sv_hv
 )
 if(SV_HAS_KVM)
