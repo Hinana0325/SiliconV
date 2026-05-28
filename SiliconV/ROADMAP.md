@@ -31,17 +31,17 @@
 
 **Goal:** Full Linux boot log from guest.
 
-- [ ] Complete GICv3 (SGI, PPI, SPI)
-- [ ] ARM generic timer
-- [ ] Multi-CPU support (4 cores)
-- [ ] 4G guest RAM
-- [ ] PSCI implementation
-- [ ] virtio-blk (root filesystem)
-- [ ] virtio-net (networking)
-- [ ] Full DTB generation
+- [x] Complete GICv3 (SGI, PPI, SPI)
+- [x] ARM generic timer
+- [x] Multi-CPU support (4 cores)
+- [x] 4G guest RAM
+- [x] PSCI implementation
+- [x] virtio-blk (root filesystem)
+- [x] virtio-net (networking)
+- [x] Full DTB generation
 - [ ] Linux kernel boots to shell
 
-**Milestone:** `# uname -a` works in guest.
+**Milestone:** 🔄 In progress (2026-05-29)
 
 ## Phase 3: Android Foundation
 
