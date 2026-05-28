@@ -1,0 +1,49 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "small_model": "anthropic/claude-haiku-4-5",
+  "autoupdate": true,
+  "share": "manual",
+  "agent": {
+    "architect": {
+      "description": "SiliconV architecture and spec review",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "You are a systems architect specializing in virtualization, ARM64, and Android internals. Review code and specs for SiliconV — a virtual phone hardware platform. Focus on ABI correctness, hardware spec compliance, and architecture decisions.",
+      "tools": {
+        "write": false,
+        "edit": false
+      }
+    },
+    "kernel": {
+      "description": "Android kernel and driver development",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "You are a Linux kernel developer specializing in ARM64, Android kernels, and device drivers. Help with GICv3, virtio, PSCI, binder, DMABUF, and kernel configuration for SiliconV."
+    },
+    "reviewer": {
+      "description": "Code review for security and quality",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "prompt": "You are a code reviewer. Focus on security, memory safety, and correctness. SiliconV is a hypervisor — bugs can crash guest VMs. Check for buffer overflows, integer overflows, uninitialized state, and race conditions.",
+      "tools": {
+        "write": false,
+        "edit": false
+      }
+    }
+  },
+  "command": {
+    "build": {
+      "template": "Build the SiliconV project:\n1. cmake -B build -DCMAKE_BUILD_TYPE=Debug\n2. cmake --build build\n3. Report any errors or warnings.",
+      "description": "Build SiliconV",
+      "agent": "build"
+    },
+    "spec-review": {
+      "template": "Review the SiliconV specification files in spec/ directory for consistency:\n- Check MMIO addresses match across mmio-map.md, dtb-schema.md, and virtio-matrix.md\n- Check IRQ numbers match across irq-map.md and dtb-schema.md\n- Verify SVABI v0 compliance\n- Report any inconsistencies.",
+      "description": "Review spec consistency",
+      "agent": "architect"
+    },
+    "kernel-check": {
+      "template": "Review the Android kernel config (kernel/configs/android.config) for:\n- Missing required options for SiliconV devices\n- Deprecated options in kernel 6.6\n- Conflicts between options\n- Suggest additions for better Android compatibility.",
+      "description": "Review kernel config",
+      "agent": "kernel"
+    }
+  }
+}
