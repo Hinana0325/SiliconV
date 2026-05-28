@@ -6,7 +6,7 @@
 # Uses AOSP common kernel (android-mainline or android14-6.1).
 #
 # Usage: ./scripts/build_kernel.sh [branch]
-#   branch: android14-6.1 (default) or android-mainline
+#   branch: android14-6.6 (default), android14-6.1, android-mainline
 #
 # Requirements:
 #   apt install gcc-aarch64-linux-gnu bc bison flex libssl-dev
@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BUILD_DIR="$PROJECT_DIR/build"
 KERNEL_DIR="$BUILD_DIR/kernel"
-BRANCH="${1:-android14-6.1}"
+BRANCH="${1:-android14-6.6}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
