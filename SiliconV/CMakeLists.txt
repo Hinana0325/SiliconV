@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SiliconV C ASM)
+project(SiliconV C ASM OBJC)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -67,21 +67,21 @@ else()
     message(STATUS "KVM/HVF backend skipped (host: ${CMAKE_SYSTEM_PROCESSOR})")
 endif()
 
-# ── Main Executable ───────────────────────────────
+# ── CLI Tool ─────────────────────────────────────
 
-add_executable(siliconv frontend/cli/main.c)
-target_link_libraries(siliconv
+add_executable(sv-cli frontend/cli/main.c)
+target_link_libraries(sv-cli
     sv_machine sv_bootimg sv_gic sv_psci sv_dtb
     sv_uart sv_virtio sv_virtio_blk sv_hv
 )
 if(SV_HAS_KVM)
-    target_link_libraries(siliconv sv_hv_kvm)
-    target_compile_definitions(siliconv PRIVATE SV_HAS_KVM=1)
+    target_link_libraries(sv-cli sv_hv_kvm)
+    target_compile_definitions(sv-cli PRIVATE SV_HAS_KVM=1)
 endif()
 if(SV_HAS_HVF)
-    target_link_libraries(siliconv sv_hv_hvf)
-    target_link_libraries(siliconv "-framework Hypervisor")
-    target_compile_definitions(siliconv PRIVATE SV_HAS_HVF=1)
+    target_link_libraries(sv-cli sv_hv_hvf)
+    target_link_libraries(sv-cli "-framework Hypervisor")
+    target_compile_definitions(sv-cli PRIVATE SV_HAS_HVF=1)
 endif()
 
 # ── Boot Stub (ARM64 cross-compile) ───────────────
@@ -105,9 +105,57 @@ else()
     message(STATUS "Boot stub skipped (install gcc-aarch64-linux-gnu)")
 endif()
 
+# ── macOS App Bundle ────────────────────────────
+
+if(APPLE)
+    set(SILICONV_SDK "macosx")
+
+    add_executable(SiliconV
+        MACOSX_BUNDLE
+        frontend/cocoa/main.m
+        frontend/cocoa/AppDelegate.m
+        frontend/cocoa/AppDelegate.h
+    )
+
+    set_target_properties(SiliconV PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/frontend/cocoa/SiliconV-Info.plist"
+        MACOSX_BUNDLE_ICON_FILE "SiliconV"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.siliconv.hypervisor"
+        MACOSX_BUNDLE_BUNDLE_VERSION "0.1"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
+        OUTPUT_NAME "SiliconV"
+    )
+
+    target_link_libraries(SiliconV
+        sv_machine sv_bootimg sv_gic sv_psci sv_dtb
+        sv_uart sv_virtio sv_virtio_blk sv_hv
+        "-framework AppKit"
+        "-framework Foundation"
+    )
+
+    # Copy icon into bundle
+    set(SILICONV_ICON "${CMAKE_SOURCE_DIR}/frontend/cocoa/SiliconV.icns")
+    if(EXISTS "${SILICONV_ICON}")
+        add_custom_command(TARGET SiliconV POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${SILICONV_ICON}"
+                "$<TARGET_FILE_DIR:SiliconV>/../Resources/SiliconV.icns"
+            COMMENT "Copying app icon to bundle"
+        )
+    endif()
+
+    if(SV_HAS_HVF)
+        target_link_libraries(SiliconV sv_hv_hvf "-framework Hypervisor")
+        target_compile_definitions(SiliconV PRIVATE SV_HAS_HVF=1)
+    endif()
+
+    message(STATUS "  Cocoa: SiliconV.app bundle enabled")
+endif()
+
 # ── Summary ───────────────────────────────────────
 
 message(STATUS "")
 message(STATUS "SiliconV: ${CMAKE_SYSTEM_PROCESSOR} / ${CMAKE_BUILD_TYPE}")
 message(STATUS "  KVM: ${SV_HAS_KVM}")
+message(STATUS "  Cocoa: ${SV_HAS_COCOA}")
 message(STATUS "")

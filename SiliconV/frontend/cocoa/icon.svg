@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Background gradient -->
+    <radialGradient id="bg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#1e2a4a"/>
+      <stop offset="50%" stop-color="#141b33"/>
+      <stop offset="100%" stop-color="#0a0e1e"/>
+    </radialGradient>
+    <!-- Chip gradient -->
+    <linearGradient id="chipBody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a3a5c"/>
+      <stop offset="50%" stop-color="#0f2440"/>
+      <stop offset="100%" stop-color="#0a1a30"/>
+    </linearGradient>
+    <!-- Core glow -->
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4fc3f7" stop-opacity="0.3"/>
+      <stop offset="60%" stop-color="#4fc3f7" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#4fc3f7" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Gold accent -->
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffd54f"/>
+      <stop offset="100%" stop-color="#ffb300"/>
+    </linearGradient>
+    <!-- Copper -->
+    <linearGradient id="copper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e0a050"/>
+      <stop offset="100%" stop-color="#c07030"/>
+    </linearGradient>
+    <!-- Silver for pins -->
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d0d8e0"/>
+      <stop offset="100%" stop-color="#90a0b0"/>
+    </linearGradient>
+    <!-- Phone outline gradient -->
+    <linearGradient id="phoneGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4fc3f7" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#0288d1" stop-opacity="0.3"/>
+    </linearGradient>
+    <!-- Drop shadow filter -->
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background rounded rect (Mac icon shape) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="200" ry="200" fill="url(#bg)"/>
+
+  <!-- Subtle grid pattern -->
+  <g stroke="#2a3a6a" stroke-width="1" opacity="0.15">
+    <line x1="0" y1="128" x2="1024" y2="128"/>
+    <line x1="0" y1="256" x2="1024" y2="256"/>
+    <line x1="0" y1="384" x2="1024" y2="384"/>
+    <line x1="0" y1="512" x2="1024" y2="512"/>
+    <line x1="0" y1="640" x2="1024" y2="640"/>
+    <line x1="0" y1="768" x2="1024" y2="768"/>
+    <line x1="0" y1="896" x2="1024" y2="896"/>
+    <line x1="128" y1="0" x2="128" y2="1024"/>
+    <line x1="256" y1="0" x2="256" y2="1024"/>
+    <line x1="384" y1="0" x2="384" y2="1024"/>
+    <line x1="512" y1="0" x2="512" y2="1024"/>
+    <line x1="640" y1="0" x2="640" y2="1024"/>
+    <line x1="768" y1="0" x2="768" y2="1024"/>
+    <line x1="896" y1="0" x2="896" y2="1024"/>
+  </g>
+
+  <!-- Phone silhouette (subtle background) -->
+  <rect x="312" y="180" width="400" height="700" rx="60" ry="60"
+        fill="none" stroke="url(#phoneGlow)" stroke-width="3" opacity="0.2"/>
+
+  <!-- Main chip die -->
+  <g filter="url(#shadow)">
+    <rect x="175" y="312" width="674" height="400" rx="40" ry="40" fill="url(#chipBody)" stroke="#2a5a8a" stroke-width="4"/>
+
+    <!-- Inner ring -->
+    <rect x="210" y="347" width="604" height="330" rx="30" ry="30" fill="none" stroke="#2a6a9a" stroke-width="2" opacity="0.4"/>
+
+    <!-- Core glow -->
+    <rect x="280" y="380" width="464" height="264" rx="20" ry="20" fill="url(#coreGlow)"/>
+
+    <!-- Core area -->
+    <rect x="300" y="400" width="424" height="224" rx="16" ry="16" fill="#0d1f38" stroke="#3a7ab0" stroke-width="2"/>
+
+    <!-- CPU cores (4 small squares in a grid) -->
+    <g fill="#1a4070" stroke="#4a8abf" stroke-width="1.5">
+      <rect x="320" y="418" width="88" height="88" rx="8"/>
+      <rect x="422" y="418" width="88" height="88" rx="8"/>
+      <rect x="524" y="418" width="88" height="88" rx="8"/>
+      <rect x="626" y="418" width="88" height="88" rx="8"/>
+    </g>
+
+    <!-- Cache blocks -->
+    <g fill="#163860" stroke="#3a7aa0" stroke-width="1" opacity="0.6">
+      <rect x="320" y="518" width="180" height="42" rx="4"/>
+      <rect x="524" y="518" width="180" height="42" rx="4"/>
+    </g>
+
+    <!-- Core labels -->
+    <g font-family="Helvetica, Arial, sans-serif" font-size="28" font-weight="bold" fill="#4fc3f7" opacity="0.7" text-anchor="middle">
+      <text x="364" y="476">A</text>
+      <text x="466" y="476">B</text>
+      <text x="568" y="476">C</text>
+      <text x="670" y="476">D</text>
+    </g>
+
+    <!-- SVG initial (the 'V' in SiliconV) - large prominent -->
+    <text x="512" y="612" font-family="Helvetica, Arial, sans-serif" font-size="180" font-weight="bold"
+          fill="url(#gold)" text-anchor="middle" filter="url(#glow)">SV</text>
+  </g>
+
+  <!-- Silicon wafers / dice on top of chip -->
+  <circle cx="280" cy="420" r="14" fill="none" stroke="url(#copper)" stroke-width="2" opacity="0.5"/>
+  <circle cx="280" cy="460" r="14" fill="none" stroke="url(#copper)" stroke-width="2" opacity="0.5"/>
+  <circle cx="744" cy="420" r="14" fill="none" stroke="url(#copper)" stroke-width="2" opacity="0.5"/>
+  <circle cx="744" cy="460" r="14" fill="none" stroke="url(#copper)" stroke-width="2" opacity="0.5"/>
+
+  <!-- Circuit traces (left side) -->
+  <g stroke="url(#copper)" stroke-width="2.5" fill="none" opacity="0.6">
+    <polyline points="140,480 160,480 175,460"/>
+    <polyline points="120,520 155,520 175,540"/>
+    <polyline points="100,560 150,560 175,560"/>
+    <circle cx="100" cy="560" r="5" fill="url(#copper)"/>
+    <circle cx="120" cy="520" r="5" fill="url(#copper)"/>
+    <circle cx="140" cy="480" r="5" fill="url(#copper)"/>
+  </g>
+
+  <!-- Circuit traces (right side) -->
+  <g stroke="url(#copper)" stroke-width="2.5" fill="none" opacity="0.6">
+    <polyline points="849,460 870,460 890,440"/>
+    <polyline points="849,520 880,520 900,500"/>
+    <polyline points="849,560 870,560 890,580"/>
+    <circle cx="890" cy="440" r="5" fill="url(#copper)"/>
+    <circle cx="900" cy="500" r="5" fill="url(#copper)"/>
+    <circle cx="890" cy="580" r="5" fill="url(#copper)"/>
+  </g>
+
+  <!-- Top pins -->
+  <g fill="url(#silver)" opacity="0.8">
+    <rect x="240" y="298" width="14" height="20" rx="2"/>
+    <rect x="290" y="298" width="14" height="20" rx="2"/>
+    <rect x="340" y="298" width="14" height="20" rx="2"/>
+    <rect x="390" y="298" width="14" height="20" rx="2"/>
+    <rect x="440" y="298" width="14" height="20" rx="2"/>
+    <rect x="490" y="298" width="14" height="20" rx="2"/>
+    <rect x="540" y="298" width="14" height="20" rx="2"/>
+    <rect x="590" y="298" width="14" height="20" rx="2"/>
+    <rect x="640" y="298" width="14" height="20" rx="2"/>
+    <rect x="690" y="298" width="14" height="20" rx="2"/>
+    <rect x="740" y="298" width="14" height="20" rx="2"/>
+  </g>
+
+  <!-- Bottom pins -->
+  <g fill="url(#silver)" opacity="0.8">
+    <rect x="240" y="706" width="14" height="20" rx="2"/>
+    <rect x="290" y="706" width="14" height="20" rx="2"/>
+    <rect x="340" y="706" width="14" height="20" rx="2"/>
+    <rect x="390" y="706" width="14" height="20" rx="2"/>
+    <rect x="440" y="706" width="14" height="20" rx="2"/>
+    <rect x="490" y="706" width="14" height="20" rx="2"/>
+    <rect x="540" y="706" width="14" height="20" rx="2"/>
+    <rect x="590" y="706" width="14" height="20" rx="2"/>
+    <rect x="640" y="706" width="14" height="20" rx="2"/>
+    <rect x="690" y="706" width="14" height="20" rx="2"/>
+    <rect x="740" y="706" width="14" height="20" rx="2"/>
+  </g>
+
+  <!-- Left pins -->
+  <g fill="url(#silver)" opacity="0.8">
+    <rect x="161" y="360" width="20" height="14" rx="2"/>
+    <rect x="161" y="410" width="20" height="14" rx="2"/>
+    <rect x="161" y="460" width="20" height="14" rx="2"/>
+    <rect x="161" y="510" width="20" height="14" rx="2"/>
+    <rect x="161" y="560" width="20" height="14" rx="2"/>
+    <rect x="161" y="610" width="20" height="14" rx="2"/>
+    <rect x="161" y="660" width="20" height="14" rx="2"/>
+  </g>
+
+  <!-- Right pins -->
+  <g fill="url(#silver)" opacity="0.8">
+    <rect x="843" y="360" width="20" height="14" rx="2"/>
+    <rect x="843" y="410" width="20" height="14" rx="2"/>
+    <rect x="843" y="460" width="20" height="14" rx="2"/>
+    <rect x="843" y="510" width="20" height="14" rx="2"/>
+    <rect x="843" y="560" width="20" height="14" rx="2"/>
+    <rect x="843" y="610" width="20" height="14" rx="2"/>
+    <rect x="843" y="660" width="20" height="14" rx="2"/>
+  </g>
+
+  <!-- Decorative dots -->
+  <g fill="#4fc3f7" opacity="0.3">
+    <circle cx="80" cy="200" r="3"/>
+    <circle cx="160" cy="180" r="2"/>
+    <circle cx="240" cy="150" r="4"/>
+    <circle cx="780" cy="160" r="3"/>
+    <circle cx="860" cy="200" r="2"/>
+    <circle cx="920" cy="280" r="4"/>
+    <circle cx="940" cy="750" r="3"/>
+    <circle cx="880" cy="830" r="4"/>
+    <circle cx="760" cy="880" r="2"/>
+    <circle cx="200" cy="860" r="3"/>
+    <circle cx="120" cy="780" r="2"/>
+    <circle cx="80" cy="680" r="4"/>
+  </g>
+</svg>

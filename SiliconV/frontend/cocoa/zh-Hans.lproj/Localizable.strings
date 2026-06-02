@@ -1,0 +1,68 @@
+/* Toolbar */
+"toolbar.start" = "启动";
+"toolbar.stop" = "停止";
+"toolbar.clear" = "清除";
+"toolbar.kernel" = "内核…";
+"toolbar.rootfs" = "根文件…";
+"toolbar.configure" = "配置";
+
+/* Status bar */
+"status.ready" = "就绪";
+"status.starting" = "正在启动虚拟机…";
+"status.running.demo" = "运行中（演示模式 — x86_64）";
+
+/* Placeholders */
+"field.kernel.placeholder" = "内核文件（拖拽或浏览）…";
+"field.rootfs.placeholder" = "根文件系统（可选）…";
+
+/* Menu */
+"menu.apple" = "SiliconV";
+"menu.about" = "关于 SiliconV";
+"menu.quit" = "退出";
+"menu.file" = "文件";
+"menu.open.kernel" = "打开内核…";
+"menu.open.rootfs" = "打开根文件系统…";
+"menu.vm" = "虚拟机";
+"menu.start" = "启动";
+"menu.stop" = "停止";
+"menu.window" = "窗口";
+"menu.minimize" = "最小化";
+
+/* Alerts */
+"alert.no.kernel.title" = "未选择内核";
+"alert.no.kernel.message" = "请先选择一个内核镜像文件。";
+
+/* Config panel */
+"config.cpus" = "CPU：";
+"config.ram" = "内存：";
+"config.cmdline" = "参数：";
+"config.apply" = "应用";
+"config.status" = "配置：%d CPU，%d MB 内存";
+
+/* About */
+"about.title" = "SiliconV";
+"about.version" = "版本 %@（构建 %@）";
+"about.credits" = "SiliconV — 虚拟手机硬件平台\n\n面向 Android/Linux 的 ARM64 虚拟机\nSVABI v0 | GICv3 | PL011 UART | Virtio";
+
+/* Console headers */
+"console.header" = "SiliconV v0.1";
+"console.cpus" = "  CPU：%d\n";
+"console.ram" = "  内存：%d MB\n";
+"console.kernel" = "  内核：%@\n";
+"console.rootfs" = "  根文件系统：%@\n";
+"console.kernel.loaded" = "sv：内核已加载\n";
+"console.rootfs.attached" = "sv：根文件系统已挂载\n";
+"console.dtb.generating" = "sv：正在生成 DTB…\n";
+"console.dtb.ok" = "sv：DTB %d 字节，地址 0x%llx\n";
+"console.demo.header" = "──────────────────────────────────────\n";
+"console.demo.mode" = "sv：[演示] x86_64 主机 — 无 ARM64 虚拟化后端\n";
+"console.demo.boot" = "sv：内核@0x%llx，dtb@0x%llx\n";
+"console.demo.success" = "✓ SiliconV 初始化成功 — 请在 Apple Silicon 或 KVM 上运行以完整启动\n";
+"console.stopped" = "sv：虚拟机已停止\n";
+"console.stop.requested" = "sv：已请求停止\n";
+"console.rootfs.set" = "sv：根文件系统设置为 %@\n";
+"console.kernel.set" = "sv：内核设置为 %@\n";
+"console.fail.init" = "sv：虚拟机初始化失败\n";
+"console.fail.kernel" = "sv：内核加载失败\n";
+"console.fail.rootfs" = "sv：根文件系统挂载失败（非致命）\n";
+"console.fail.dtb" = "sv：DTB 生成失败\n";

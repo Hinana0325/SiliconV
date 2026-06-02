@@ -1,0 +1,68 @@
+/* Toolbar */
+"toolbar.start" = "Start";
+"toolbar.stop" = "Stop";
+"toolbar.clear" = "Clear";
+"toolbar.kernel" = "Kernel…";
+"toolbar.rootfs" = "Rootfs…";
+"toolbar.configure" = "Configure";
+
+/* Status bar */
+"status.ready" = "Ready";
+"status.starting" = "Starting VM…";
+"status.running.demo" = "Running (demo mode — x86_64)";
+
+/* Placeholders */
+"field.kernel.placeholder" = "Kernel (drag or browse)…";
+"field.rootfs.placeholder" = "Root filesystem (optional)…";
+
+/* Menu */
+"menu.apple" = "SiliconV";
+"menu.about" = "About SiliconV";
+"menu.quit" = "Quit";
+"menu.file" = "File";
+"menu.open.kernel" = "Open Kernel…";
+"menu.open.rootfs" = "Open Rootfs…";
+"menu.vm" = "VM";
+"menu.start" = "Start";
+"menu.stop" = "Stop";
+"menu.window" = "Window";
+"menu.minimize" = "Minimize";
+
+/* Alerts */
+"alert.no.kernel.title" = "No Kernel";
+"alert.no.kernel.message" = "Please select a kernel image first.";
+
+/* Config panel */
+"config.cpus" = "CPUs:";
+"config.ram" = "RAM:";
+"config.cmdline" = "Cmdline:";
+"config.apply" = "Apply";
+"config.status" = "Config: %d CPUs, %d MB RAM";
+
+/* About */
+"about.title" = "SiliconV";
+"about.version" = "Version %@ (build %@)";
+"about.credits" = "SiliconV — Virtual Phone Hardware Platform\n\nARM64 virtual machine for Android/Linux\nSVABI v0 | GICv3 | PL011 UART | Virtio";
+
+/* Console headers */
+"console.header" = "SiliconV v0.1";
+"console.cpus" = "  CPUs: %d\n";
+"console.ram" = "  RAM:  %d MB\n";
+"console.kernel" = "  Kernel: %@\n";
+"console.rootfs" = "  Rootfs: %@\n";
+"console.kernel.loaded" = "sv: kernel loaded\n";
+"console.rootfs.attached" = "sv: rootfs attached\n";
+"console.dtb.generating" = "sv: generating DTB…\n";
+"console.dtb.ok" = "sv: DTB %d bytes at 0x%llx\n";
+"console.demo.header" = "──────────────────────────────────────\n";
+"console.demo.mode" = "sv: [demo] x86_64 host — no ARM64 hypervisor\n";
+"console.demo.boot" = "sv: kernel@0x%llx, dtb@0x%llx\n";
+"console.demo.success" = "✓ SiliconV initialized — build for Apple Silicon or KVM for full boot\n";
+"console.stopped" = "sv: VM stopped\n";
+"console.stop.requested" = "sv: stop requested\n";
+"console.rootfs.set" = "sv: rootfs set to %@\n";
+"console.kernel.set" = "sv: kernel set to %@\n";
+"console.fail.init" = "sv: machine init failed\n";
+"console.fail.kernel" = "sv: kernel load failed\n";
+"console.fail.rootfs" = "sv: rootfs attach failed (non-fatal)\n";
+"console.fail.dtb" = "sv: DTB generation failed\n";
