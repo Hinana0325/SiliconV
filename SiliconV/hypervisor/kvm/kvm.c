@@ -80,12 +80,16 @@ static sv_vm_t* kvm_vm_create(const sv_vm_config_t *config)
     vm->vm_fd = ioctl(vm->kvm_fd, KVM_CREATE_VM, 0);
     if (vm->vm_fd < 0) goto err;
 
-    /* Allocate guest RAM */
-    vm->ram = mmap(NULL, vm->ram_size,
-                   PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
-                   -1, 0);
-    if (vm->ram == MAP_FAILED) goto err;
+    /* Use pre-allocated RAM if provided, otherwise allocate */
+    if (config->preallocated_ram) {
+        vm->ram = (uint8_t*)config->preallocated_ram;
+    } else {
+        vm->ram = mmap(NULL, vm->ram_size,
+                       PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+                       -1, 0);
+        if (vm->ram == MAP_FAILED) goto err;
+    }
 
     /* Map RAM into guest physical address space */
     struct kvm_userspace_memory_region mem = {
@@ -107,7 +111,7 @@ static sv_vm_t* kvm_vm_create(const sv_vm_config_t *config)
     return vm;
 
 err:
-    if (vm->ram && vm->ram != MAP_FAILED)
+    if (!config->preallocated_ram && vm->ram && vm->ram != MAP_FAILED)
         munmap(vm->ram, vm->ram_size);
     if (vm->vm_fd >= 0) close(vm->vm_fd);
     if (vm->kvm_fd >= 0) close(vm->kvm_fd);
@@ -119,7 +123,8 @@ err:
 static void kvm_vm_destroy(sv_vm_t *vm)
 {
     if (!vm) return;
-    if (vm->ram) munmap(vm->ram, vm->ram_size);
+    if (vm->ram && !vm->config.preallocated_ram)
+        munmap(vm->ram, vm->ram_size);
     if (vm->vm_fd >= 0) close(vm->vm_fd);
     if (vm->kvm_fd >= 0) close(vm->kvm_fd);
     free(vm);
@@ -128,6 +133,10 @@ static void kvm_vm_destroy(sv_vm_t *vm)
 /* Load kernel into guest RAM */
 static int kvm_load_kernel(sv_vm_t *vm, const char *path)
 {
+    /* Kernel already loaded by machine.c if path is NULL */
+    if (!path)
+        return 0;
+
     FILE *f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "sv: cannot open kernel: %s\n", path);
@@ -162,6 +171,10 @@ static int kvm_load_kernel(sv_vm_t *vm, const char *path)
 /* Load DTB into guest RAM */
 static int kvm_load_dtb(sv_vm_t *vm, const char *path)
 {
+    /* DTB already loaded by machine.c if path is NULL */
+    if (!path)
+        return 0;
+
     FILE *f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "sv: cannot open DTB: %s\n", path);

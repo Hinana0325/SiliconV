@@ -31,6 +31,12 @@ typedef struct {
     const char *dtb_path;       /* Path to DTB (optional, generated if NULL) */
     const char *initrd_path;    /* Path to initramfs (optional) */
     const char *cmdline;        /* Kernel command line */
+
+    /* Pre-loaded data from machine.c (optional, takes priority over paths) */
+    void       *preallocated_ram;  /* If non-NULL: use this as guest RAM */
+    uint64_t    kernel_entry;      /* Pre-loaded kernel entry (if preallocated_ram set) */
+    uint64_t    dtb_addr;          /* Pre-loaded DTB IPA (if preallocated_ram set) */
+    uint64_t    initrd_addr;       /* Pre-loaded initrd IPA (0 if none) */
 } sv_vm_config_t;
 
 /* MMIO handler callbacks */

@@ -135,21 +135,6 @@ static void w_prop_u32(dtb_writer_t *w, const char *name, uint32_t val)
     w_prop(w, name, &be, 4);
 }
 
-/* Write a u64 property (8 bytes, big-endian) */
-static void w_prop_u64(dtb_writer_t *w, const char *name, uint64_t val)
-{
-    uint8_t be[8];
-    be[0] = (val >> 56) & 0xFF;
-    be[1] = (val >> 48) & 0xFF;
-    be[2] = (val >> 40) & 0xFF;
-    be[3] = (val >> 32) & 0xFF;
-    be[4] = (val >> 24) & 0xFF;
-    be[5] = (val >> 16) & 0xFF;
-    be[6] = (val >> 8) & 0xFF;
-    be[7] = val & 0xFF;
-    w_prop(w, name, be, 8);
-}
-
 /* Write a #address-cells / #size-cells style u64+u64 property */
 static void w_prop_reg2(dtb_writer_t *w, const char *name,
                         uint64_t addr, uint64_t size)
@@ -228,6 +213,7 @@ int dtb_generate(uint8_t *buf, size_t bufsize, const dtb_config_t *config)
     w_prop_str(&w, "model", "SiliconV Virtual Machine");
     w_prop_u32(&w, "#address-cells", 2);
     w_prop_u32(&w, "#size-cells", 2);
+    w_prop_u32(&w, "interrupt-parent", 1);
 
     /* ── chosen ────────────────────────────────── */
     w_begin_node(&w, "chosen");
@@ -271,14 +257,14 @@ int dtb_generate(uint8_t *buf, size_t bufsize, const dtb_config_t *config)
     /* ── timer ─────────────────────────────────── */
     w_begin_node(&w, "timer");
     w_prop_str(&w, "compatible", "arm,armv8-timer");
-    /* PPI 13,14,11,10 — all CPUs, level-low */
+    /* PPI 13,14,11,10 - all CPUs, GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW */
     uint32_t timer_irqs[] = {
-        0x0000000d, 0x00000001,  /* PPI 13, rising edge */
-        0x0000000e, 0x00000001,  /* PPI 14 */
-        0x0000000b, 0x00000001,  /* PPI 11 */
-        0x0000000a, 0x00000001,  /* PPI 10 */
+        1, 13, 0x000F0008,  /* PPI 13, CPU mask 0xF, level low */
+        1, 14, 0x000F0008,  /* PPI 14 */
+        1, 11, 0x000F0008,  /* PPI 11 */
+        1, 10, 0x000F0008,  /* PPI 10 */
     };
-    w_prop_u32list(&w, "interrupts", timer_irqs, 8);
+    w_prop_u32list(&w, "interrupts", timer_irqs, 12);
     w_end_node(&w);
 
     /* ── GICv3 ─────────────────────────────────── */
@@ -288,20 +274,7 @@ int dtb_generate(uint8_t *buf, size_t bufsize, const dtb_config_t *config)
     w_prop_u32(&w, "#address-cells", 2);
     w_prop_u32(&w, "#size-cells", 2);
     w_prop_empty(&w, "interrupt-controller");
-    /* reg: GICD, GICR, GITS */
-    uint8_t gic_reg[48];
-    /* GICD at 0x08000000, 64K */
-    memset(gic_reg, 0, 48);
-    gic_reg[7] = 0x08; gic_reg[8] = 0; gic_reg[9] = 0; gic_reg[10] = 0;  /* addr high */
-    gic_reg[11] = 0x00; gic_reg[12] = 0; gic_reg[13] = 0; gic_reg[14] = 0;
-    gic_reg[15] = 0x00; gic_reg[16] = 0x01; gic_reg[17] = 0; gic_reg[18] = 0;
-    /* Simplified: just write 3x (addr=8/32-bit, size=8/32-bit) */
-    /* Actually let me just use the simpler approach with reg2 per entry */
-    /* For GICv3 with #address-cells=2, #size-cells=2:
-     *   reg = <GICD_addr_high GICD_addr_low GICD_size_high GICD_size_low
-     *          GICR_addr_high GICR_addr_low GICR_size_high GICR_size_low
-     *          GITS_addr_high GITS_addr_low GITS_size_high GITS_size_low>;
-     */
+    w_prop_u32(&w, "phandle", 1);
     uint8_t gic_regdata[48] = {
         /* GICD: 0x00000000 0x08000000 0x00000000 0x00010000 */
         0,0,0,0, 0x08,0,0,0,  0,0,0,0, 0,1,0,0,
@@ -311,16 +284,15 @@ int dtb_generate(uint8_t *buf, size_t bufsize, const dtb_config_t *config)
         0,0,0,0, 0x08,0x02,0,0, 0,0,0,0, 0,1,0,0,
     };
     w_prop(&w, "reg", gic_regdata, 48);
-    w_prop_u32(&w, "ranges", 0);
+    w_prop_empty(&w, "ranges");
     w_end_node(&w);
 
     /* ── UART (PL011) ──────────────────────────── */
     w_begin_node(&w, "uart@10000000");
-    w_prop_str(&w, "compatible", "arm,pl011");
+    w_prop(&w, "compatible", "arm,pl011\0arm,primecell", 24);
     w_prop_reg2(&w, "reg", 0x10000000, 0x10000);
-    /* interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH> = <32 4> */
-    uint32_t uart_irq[] = { 32, 4 };
-    w_prop_u32list(&w, "interrupts", uart_irq, 2);
+    uint32_t uart_irq[] = { 0, 32, 4 };
+    w_prop_u32list(&w, "interrupts", uart_irq, 3);
     w_prop_u32(&w, "clock-frequency", 24000000);
     w_prop_str(&w, "status", "okay");
     w_end_node(&w);
@@ -333,8 +305,8 @@ int dtb_generate(uint8_t *buf, size_t bufsize, const dtb_config_t *config)
         w_begin_node(&w, name);
         w_prop_str(&w, "compatible", "virtio,mmio");
         w_prop_reg2(&w, "reg", config->virtio[i].base, 0x200);
-        uint32_t virq[] = { (uint32_t)config->virtio[i].irq, 4 };
-        w_prop_u32list(&w, "interrupts", virq, 2);
+        uint32_t virq[] = { 0, (uint32_t)config->virtio[i].irq, 4 };
+        w_prop_u32list(&w, "interrupts", virq, 3);
         w_end_node(&w);
     }
 

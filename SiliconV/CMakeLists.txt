@@ -58,8 +58,13 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND CMAKE_SYSTEM_NAME STREQUAL "Lin
     target_link_libraries(sv_hv_kvm PUBLIC sv_hv)
     set(SV_HAS_KVM TRUE)
     message(STATUS "KVM backend enabled (ARM64 Linux)")
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64" AND CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    add_library(sv_hv_hvf STATIC hypervisor/hvf/hvf.c)
+    target_link_libraries(sv_hv_hvf PUBLIC sv_hv)
+    set(SV_HAS_HVF TRUE)
+    message(STATUS "HVF backend enabled (ARM64 macOS)")
 else()
-    message(STATUS "KVM backend skipped (host: ${CMAKE_SYSTEM_PROCESSOR})")
+    message(STATUS "KVM/HVF backend skipped (host: ${CMAKE_SYSTEM_PROCESSOR})")
 endif()
 
 # ── Main Executable ───────────────────────────────
@@ -72,6 +77,11 @@ target_link_libraries(siliconv
 if(SV_HAS_KVM)
     target_link_libraries(siliconv sv_hv_kvm)
     target_compile_definitions(siliconv PRIVATE SV_HAS_KVM=1)
+endif()
+if(SV_HAS_HVF)
+    target_link_libraries(siliconv sv_hv_hvf)
+    target_link_libraries(siliconv "-framework Hypervisor")
+    target_compile_definitions(siliconv PRIVATE SV_HAS_HVF=1)
 endif()
 
 # ── Boot Stub (ARM64 cross-compile) ───────────────
