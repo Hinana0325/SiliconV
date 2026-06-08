@@ -45,7 +45,7 @@ jobs:
           cp README.md LICENSE release/ 2>/dev/null || true
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: siliconv-linux-x86_64
           path: release/
@@ -85,7 +85,7 @@ jobs:
           cp -r spec/ release/spec/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: siliconv-linux-arm64
           path: release/
@@ -112,7 +112,7 @@ jobs:
           aarch64-linux-gnu-objcopy -O binary build/boot_stub.elf build/boot_stub.bin
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: siliconv-boot-stub
           path: build/boot_stub.bin

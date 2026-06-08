@@ -36,7 +36,7 @@ jobs:
         run: cmake --build build --parallel $(nproc)
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: siliconv-x86_64
           path: build/siliconv
@@ -68,7 +68,7 @@ jobs:
           file build/boot_stub.bin
 
       - name: Upload boot stub
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: siliconv-boot-stub
           path: build/boot_stub.bin

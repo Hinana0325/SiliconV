@@ -89,7 +89,7 @@ jobs:
             modules_install
 
       - name: Upload kernel
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: siliconv-kernel-${{ env.KERNEL_BRANCH }}
           path: release/
