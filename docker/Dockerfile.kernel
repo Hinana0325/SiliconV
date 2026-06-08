@@ -1,0 +1,19 @@
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y \
+    gcc-aarch64-linux-gnu \
+    bc \
+    bison \
+    flex \
+    libssl-dev \
+    make \
+    git \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CC=aarch64-linux-gnu-gcc
+ENV CROSS_COMPILE=aarch64-linux-gnu-
+
+WORKDIR /build
+
+ENTRYPOINT ["bash"]
