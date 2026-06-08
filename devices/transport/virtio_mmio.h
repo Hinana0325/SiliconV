@@ -139,6 +139,9 @@ struct virtio_device {
     /* IRQ */
     int irq_num;
 
+    /* GIC reference for raising interrupts (opaque — full type in gic.h) */
+    void *gic;
+
     /* Guest memory base for DMA */
     uint8_t *guest_ram;
     uint64_t guest_ram_base;
@@ -151,6 +154,9 @@ struct virtio_device {
 void virtio_init(virtio_device_t *dev, const virtio_dev_ops_t *ops,
                  int num_queues, int irq_num,
                  uint8_t *guest_ram, uint64_t ram_base, uint64_t ram_size);
+
+/* Set the GIC reference for interrupt delivery (pass gic_state_t*) */
+void virtio_set_gic(virtio_device_t *dev, void *gic);
 
 /* Raise interrupt on the device */
 void virtio_raise_interrupt(virtio_device_t *dev, uint32_t mask);

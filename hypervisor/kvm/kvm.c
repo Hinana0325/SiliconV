@@ -12,6 +12,7 @@
 #ifdef __aarch64__
 
 #include <linux/kvm.h>
+#include <linux/kvm_host.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -21,6 +22,16 @@
 #include <stdio.h>
 #include <errno.h>
 
+/* ── ARM64 KVM Register Encoding ───────────────── */
+#define KVM_REG_ARM64_CORE_REG(n) \
+    (KVM_REG_ARM64 | KVM_REG_SIZE_U64 | KVM_REG_ARM64_CORE | (n))
+
+/* Core register offsets (from asm/kvm.h) */
+#define KVM_ARM64_REG_X0    0
+#define KVM_ARM64_REG_SP    31
+#define KVM_ARM64_REG_PC    32
+#define KVM_ARM64_REG_PSTATE 33
+
 /* Internal VM structure */
 struct sv_vm {
     int         kvm_fd;
@@ -29,6 +40,14 @@ struct sv_vm {
     uint64_t    ram_size;
     uint64_t    ram_base;
     sv_vm_config_t config;
+
+    /* GIC device fd */
+    int         gic_fd;
+
+    /* MMIO dispatch callbacks (from machine.c) */
+    uint64_t (*mmio_read)(void *opaque, uint64_t addr, int size);
+    void     (*mmio_write)(void *opaque, uint64_t addr, uint64_t value, int size);
+    void      *mmio_opaque;
 };
 
 /* Internal vCPU structure */
@@ -40,7 +59,8 @@ struct sv_vcpu {
     int         id;
 };
 
-/* KVM initialization */
+/* ── KVM initialization ────────────────────────── */
+
 static int kvm_init(void)
 {
     int fd = open("/dev/kvm", O_RDWR | O_CLOEXEC);
@@ -62,7 +82,58 @@ static int kvm_init(void)
     return 0;
 }
 
-/* Create VM */
+/* ── GICv3 setup via KVM_CREATE_DEVICE ─────────── */
+
+static int kvm_create_gic(sv_vm_t *vm)
+{
+    struct kvm_create_device cd = {
+        .type = KVM_DEV_TYPE_ARM_VGIC_V3,
+        .fd = 0,
+        .flags = 0,
+    };
+
+    if (ioctl(vm->vm_fd, KVM_CREATE_DEVICE, &cd) < 0) {
+        fprintf(stderr, "sv: failed to create GICv3: %s (continuing without)\n",
+                strerror(errno));
+        vm->gic_fd = -1;
+        return -1;
+    }
+
+    vm->gic_fd = cd.fd;
+
+    /* Set GIC attributes: init GICv3 */
+    /* Distributor address */
+    struct kvm_device_attr attr = {
+        .group = KVM_DEV_ARM_VGIC_GRP_ADDR,
+        .attr = KVM_VGIC_V3_ADDR_TYPE_DIST,
+        .addr = (uint64_t)(unsigned long)&(uint64_t){0x08000000},
+    };
+    if (ioctl(vm->gic_fd, KVM_SET_DEVICE_ATTR, &attr) < 0) {
+        fprintf(stderr, "sv: failed to set GIC dist addr: %s\n", strerror(errno));
+    }
+
+    /* Redistributor address */
+    attr.attr = KVM_VGIC_V3_ADDR_TYPE_REDIST;
+    uint64_t redist_base = 0x08010000;
+    attr.addr = (uint64_t)(unsigned long)&redist_base;
+    if (ioctl(vm->gic_fd, KVM_SET_DEVICE_ATTR, &attr) < 0) {
+        fprintf(stderr, "sv: failed to set GIC redist addr: %s\n", strerror(errno));
+    }
+
+    /* Initialize GIC */
+    attr.group = KVM_DEV_ARM_VGIC_GRP_CTRL;
+    attr.attr = KVM_VGIC_CTRL_INIT;
+    attr.addr = 0;
+    if (ioctl(vm->gic_fd, KVM_SET_DEVICE_ATTR, &attr) < 0) {
+        fprintf(stderr, "sv: failed to init GIC: %s\n", strerror(errno));
+    }
+
+    printf("sv: GICv3 created via KVM\n");
+    return 0;
+}
+
+/* ── Create VM ─────────────────────────────────── */
+
 static sv_vm_t* kvm_vm_create(const sv_vm_config_t *config)
 {
     sv_vm_t *vm = calloc(1, sizeof(*vm));
@@ -71,6 +142,12 @@ static sv_vm_t* kvm_vm_create(const sv_vm_config_t *config)
     vm->config = *config;
     vm->ram_size = config->ram_size;
     vm->ram_base = config->ram_base;
+    vm->gic_fd = -1;
+
+    /* Store MMIO callbacks */
+    vm->mmio_read = config->mmio_read;
+    vm->mmio_write = config->mmio_write;
+    vm->mmio_opaque = config->callback_opaque;
 
     /* Open KVM device */
     vm->kvm_fd = open("/dev/kvm", O_RDWR | O_CLOEXEC);
@@ -105,8 +182,8 @@ static sv_vm_t* kvm_vm_create(const sv_vm_config_t *config)
         goto err;
     }
 
-    /* TODO: Create GICv3 via KVM_CREATE_DEVICE */
-    /* TODO: Create vCPU timer via KVM_ARM_VCPU_TIMER */
+    /* Create GICv3 (best effort) */
+    kvm_create_gic(vm);
 
     return vm;
 
@@ -119,10 +196,12 @@ err:
     return NULL;
 }
 
-/* Destroy VM */
+/* ── Destroy VM ────────────────────────────────── */
+
 static void kvm_vm_destroy(sv_vm_t *vm)
 {
     if (!vm) return;
+    if (vm->gic_fd >= 0) close(vm->gic_fd);
     if (vm->ram && !vm->config.preallocated_ram)
         munmap(vm->ram, vm->ram_size);
     if (vm->vm_fd >= 0) close(vm->vm_fd);
@@ -130,77 +209,44 @@ static void kvm_vm_destroy(sv_vm_t *vm)
     free(vm);
 }
 
-/* Load kernel into guest RAM */
+/* ── Load kernel (no-op, handled by machine.c) ── */
+
 static int kvm_load_kernel(sv_vm_t *vm, const char *path)
 {
-    /* Kernel already loaded by machine.c if path is NULL */
-    if (!path)
-        return 0;
+    (void)vm;
+    if (!path) return 0;
 
-    FILE *f = fopen(path, "rb");
-    if (!f) {
-        fprintf(stderr, "sv: cannot open kernel: %s\n", path);
-        return -1;
-    }
-
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    if ((uint64_t)size > vm->ram_size) {
-        fprintf(stderr, "sv: kernel too large (%ld > %lu)\n", size, vm->ram_size);
-        fclose(f);
-        return -1;
-    }
-
-    /* Load at RAM base + 32MB offset (room for DTB and initrd) */
-    uint64_t offset = 32 * 1024 * 1024;
-    size_t nread = fread(vm->ram + offset, 1, size, f);
-    fclose(f);
-
-    if ((long)nread != size) {
-        fprintf(stderr, "sv: short read on kernel\n");
-        return -1;
-    }
-
-    printf("sv: loaded kernel %s at 0x%lx (%ld bytes)\n",
-           path, vm->ram_base + offset, size);
-    return 0;
+    /* Should not be called — machine.c loads kernel into preallocated RAM */
+    fprintf(stderr, "sv: kvm_load_kernel called with path (unexpected)\n");
+    return -1;
 }
 
-/* Load DTB into guest RAM */
 static int kvm_load_dtb(sv_vm_t *vm, const char *path)
 {
-    /* DTB already loaded by machine.c if path is NULL */
-    if (!path)
-        return 0;
+    (void)vm;
+    if (!path) return 0;
+    fprintf(stderr, "sv: kvm_load_dtb called with path (unexpected)\n");
+    return -1;
+}
 
-    FILE *f = fopen(path, "rb");
-    if (!f) {
-        fprintf(stderr, "sv: cannot open DTB: %s\n", path);
-        return -1;
-    }
+/* ── Register MMIO region (no-op, handled via callbacks) ── */
 
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    /* Load DTB at RAM base + 2MB */
-    uint64_t offset = 2 * 1024 * 1024;
-    size_t nread = fread(vm->ram + offset, 1, size, f);
-    fclose(f);
-
-    if ((long)nread != size) {
-        fprintf(stderr, "sv: short read on DTB\n");
-        return -1;
-    }
-
-    printf("sv: loaded DTB %s at 0x%lx (%ld bytes)\n",
-           path, vm->ram_base + offset, size);
+static int kvm_mmio_register(sv_vm_t *vm, uint64_t addr, uint64_t size,
+                              const sv_mmio_handler_t *handler)
+{
+    /* KVM handles MMIO via KVM_EXIT_MMIO — we dispatch in the run loop.
+     * The handler is already stored via the vm's callbacks.
+     * We just need to make sure the memory region is NOT mapped,
+     * so KVM will trap accesses. */
+    (void)vm;
+    (void)addr;
+    (void)size;
+    (void)handler;
     return 0;
 }
 
-/* Create vCPU */
+/* ── Create vCPU ───────────────────────────────── */
+
 static sv_vcpu_t* kvm_vcpu_create(sv_vm_t *vm, int id)
 {
     sv_vcpu_t *vcpu = calloc(1, sizeof(*vcpu));
@@ -211,7 +257,7 @@ static sv_vcpu_t* kvm_vcpu_create(sv_vm_t *vm, int id)
 
     vcpu->fd = ioctl(vm->vm_fd, KVM_CREATE_VCPU, id);
     if (vcpu->fd < 0) {
-        fprintf(stderr, "sv: failed to create vCPU %d\n", id);
+        fprintf(stderr, "sv: failed to create vCPU %d: %s\n", id, strerror(errno));
         free(vcpu);
         return NULL;
     }
@@ -227,37 +273,88 @@ static sv_vcpu_t* kvm_vcpu_create(sv_vm_t *vm, int id)
         return NULL;
     }
 
+    /* Enable vCPU timer */
+    struct kvm_vcpu_init init = {0};
+    /* Request PSCI-based CPU features */
+    ioctl(vcpu->fd, KVM_GET_PREFERRED_TARGET, &init);
+    ioctl(vcpu->fd, KVM_ARM_VCPU_INIT, &init);
+
+    printf("sv: vCPU %d created\n", id);
     return vcpu;
 }
 
-/* Run vCPU */
+/* ── Run vCPU ──────────────────────────────────── */
+
 static int kvm_vcpu_run(sv_vcpu_t *vcpu, sv_vcpu_exit_t *exit)
 {
+    sv_vm_t *vm = vcpu->vm;
+
     int ret = ioctl(vcpu->fd, KVM_RUN, 0);
     if (ret < 0) {
         exit->type = SV_EXIT_UNKNOWN;
+        exit->vcpu_id = vcpu->id;
         return -1;
     }
 
+    exit->vcpu_id = vcpu->id;
+
     switch (vcpu->run->exit_reason) {
-    case KVM_EXIT_MMIO:
+    case KVM_EXIT_MMIO: {
+        uint64_t addr = vcpu->run->mmio.phys_addr;
+        int size = vcpu->run->mmio.len;
+
         if (vcpu->run->mmio.is_write) {
+            /* Guest wrote to MMIO — dispatch to device emulator */
             exit->type = SV_EXIT_MMIO_WRITE;
-            exit->mmio_data = 0;
-            memcpy(&exit->mmio_data, vcpu->run->mmio.data,
-                   vcpu->run->mmio.len);
+            exit->mmio_addr = addr;
+            exit->mmio_size = size;
+            memcpy(&exit->mmio_data, vcpu->run->mmio.data, size);
+
+            /* Call machine's MMIO write handler */
+            if (vm->mmio_write) {
+                uint64_t val = 0;
+                memcpy(&val, vcpu->run->mmio.data, size);
+                vm->mmio_write(vm->mmio_opaque, addr, val, size);
+            }
         } else {
+            /* Guest read from MMIO — dispatch to device emulator */
             exit->type = SV_EXIT_MMIO_READ;
+            exit->mmio_addr = addr;
+            exit->mmio_size = size;
+
+            if (vm->mmio_read) {
+                uint64_t val = vm->mmio_read(vm->mmio_opaque, addr, size);
+                memcpy(vcpu->run->mmio.data, &val, size);
+            }
         }
-        exit->mmio_addr = vcpu->run->mmio.phys_addr;
-        exit->mmio_size = vcpu->run->mmio.len;
         break;
+    }
 
     case KVM_EXIT_HLT:
         exit->type = SV_EXIT_HLT;
         break;
 
+    case KVM_EXIT_SYSTEM_EVENT:
+        if (vcpu->run->system_event.type == KVM_SYSTEM_EVENT_SHUTDOWN) {
+            exit->type = SV_EXIT_SHUTDOWN;
+        } else {
+            exit->type = SV_EXIT_UNKNOWN;
+        }
+        break;
+
+    case KVM_EXIT_INTERNAL_ERROR:
+        fprintf(stderr, "sv: vCPU %d internal error: suberror=%d\n",
+                vcpu->id, vcpu->run->internal.suberror);
+        exit->type = SV_EXIT_UNKNOWN;
+        break;
+
+    case KVM_EXIT_DEBUG:
+        exit->type = SV_EXIT_UNKNOWN;
+        break;
+
     default:
+        fprintf(stderr, "sv: vCPU %d unknown exit reason: %d\n",
+                vcpu->id, vcpu->run->exit_reason);
         exit->type = SV_EXIT_UNKNOWN;
         break;
     }
@@ -265,20 +362,90 @@ static int kvm_vcpu_run(sv_vcpu_t *vcpu, sv_vcpu_exit_t *exit)
     return 0;
 }
 
-/* Register the KVM backend */
+/* ── vCPU Register Access ──────────────────────── */
+
+static int kvm_vcpu_get_reg(sv_vcpu_t *vcpu, uint64_t reg, uint64_t *val)
+{
+    uint64_t kvm_reg;
+
+    /* Map our register numbering to KVM register IDs */
+    if (reg <= 30) {
+        /* x0-x30 */
+        kvm_reg = KVM_REG_ARM64_CORE_REG(reg);
+    } else if (reg == 31) {
+        /* SP */
+        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_SP);
+    } else if (reg == 32) {
+        /* PC */
+        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_PC);
+    } else if (reg == 33) {
+        /* PSTATE/CPSR */
+        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_PSTATE);
+    } else {
+        fprintf(stderr, "sv: unsupported register %lu\n", (unsigned long)reg);
+        return -1;
+    }
+
+    struct kvm_one_reg one = {
+        .id = kvm_reg,
+        .addr = (uint64_t)(unsigned long)val,
+    };
+
+    if (ioctl(vcpu->fd, KVM_GET_ONE_REG, &one) < 0) {
+        fprintf(stderr, "sv: failed to get reg %lu: %s\n",
+                (unsigned long)reg, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
+static int kvm_vcpu_set_reg(sv_vcpu_t *vcpu, uint64_t reg, uint64_t val)
+{
+    uint64_t kvm_reg;
+
+    if (reg <= 30) {
+        kvm_reg = KVM_REG_ARM64_CORE_REG(reg);
+    } else if (reg == 31) {
+        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_SP);
+    } else if (reg == 32) {
+        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_PC);
+    } else if (reg == 33) {
+        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_PSTATE);
+    } else {
+        fprintf(stderr, "sv: unsupported register %lu\n", (unsigned long)reg);
+        return -1;
+    }
+
+    struct kvm_one_reg one = {
+        .id = kvm_reg,
+        .addr = (uint64_t)(unsigned long)&val,
+    };
+
+    if (ioctl(vcpu->fd, KVM_SET_ONE_REG, &one) < 0) {
+        fprintf(stderr, "sv: failed to set reg %lu = 0x%lx: %s\n",
+                (unsigned long)reg, (unsigned long)val, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
+/* ── Register the KVM backend ──────────────────── */
+
 static const sv_hv_ops_t kvm_ops = {
     .name = "kvm",
     .type = SV_HV_KVM,
     .init = kvm_init,
     .vm_create = kvm_vm_create,
     .vm_destroy = kvm_vm_destroy,
-    .mmio_register = NULL,  /* TODO */
+    .mmio_register = kvm_mmio_register,
     .load_kernel = kvm_load_kernel,
     .load_dtb = kvm_load_dtb,
     .vcpu_create = kvm_vcpu_create,
     .vcpu_run = kvm_vcpu_run,
-    .vcpu_get_reg = NULL,   /* TODO */
-    .vcpu_set_reg = NULL,   /* TODO */
+    .vcpu_get_reg = kvm_vcpu_get_reg,
+    .vcpu_set_reg = kvm_vcpu_set_reg,
     .shutdown = NULL,
 };
 

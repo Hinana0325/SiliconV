@@ -6,6 +6,7 @@
  */
 
 #include "virtio_mmio.h"
+#include "../../core/irq/gic.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -22,6 +23,12 @@ void virtio_init(virtio_device_t *dev, const virtio_dev_ops_t *ops,
     dev->guest_ram = guest_ram;
     dev->guest_ram_base = ram_base;
     dev->guest_ram_size = ram_size;
+    dev->gic = NULL;
+}
+
+void virtio_set_gic(virtio_device_t *dev, void *gic)
+{
+    dev->gic = gic;
 }
 
 /* ── Interrupt Helpers ─────────────────────────── */
@@ -29,7 +36,10 @@ void virtio_init(virtio_device_t *dev, const virtio_dev_ops_t *ops,
 void virtio_raise_interrupt(virtio_device_t *dev, uint32_t mask)
 {
     dev->int_status |= mask;
-    /* TODO: notify GIC to raise IRQ dev->irq_num */
+    /* Raise the IRQ on the GIC if we have a reference */
+    if (dev->gic && dev->irq_num >= 32) {
+        gic_raise_spi((gic_state_t *)dev->gic, dev->irq_num);
+    }
 }
 
 /* ── Descriptor Helpers ────────────────────────── */

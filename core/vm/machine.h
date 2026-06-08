@@ -26,6 +26,7 @@
 #include "../../devices/uart/pl011.h"
 #include "../../devices/transport/virtio_mmio.h"
 #include "../../devices/virtio-blk/virtio_blk.h"
+#include "../../devices/virtio-console/virtio_console.h"
 #include "../../hypervisor/abstraction/hv.h"
 
 /* ── VM Machine State ──────────────────────────── */
@@ -39,6 +40,8 @@ typedef struct {
     /* Virtio devices */
     virtio_blk_t    virtio_blk;
     bool            virtio_blk_enabled;
+    virtio_console_t virtio_console;
+    bool            virtio_console_enabled;
 
     /* Guest memory */
     uint8_t        *ram;

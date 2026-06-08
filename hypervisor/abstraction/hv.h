@@ -37,6 +37,11 @@ typedef struct {
     uint64_t    kernel_entry;      /* Pre-loaded kernel entry (if preallocated_ram set) */
     uint64_t    dtb_addr;          /* Pre-loaded DTB IPA (if preallocated_ram set) */
     uint64_t    initrd_addr;       /* Pre-loaded initrd IPA (0 if none) */
+
+    /* MMIO dispatch callbacks (machine.c → backend) */
+    uint64_t (*mmio_read)(void *opaque, uint64_t addr, int size);
+    void     (*mmio_write)(void *opaque, uint64_t addr, uint64_t value, int size);
+    void      *callback_opaque;    /* Passed to mmio_read/write */
 } sv_vm_config_t;
 
 /* MMIO handler callbacks */

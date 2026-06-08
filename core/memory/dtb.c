@@ -275,15 +275,18 @@ int dtb_generate(uint8_t *buf, size_t bufsize, const dtb_config_t *config)
     w_prop_u32(&w, "#size-cells", 2);
     w_prop_empty(&w, "interrupt-controller");
     w_prop_u32(&w, "phandle", 1);
-    uint8_t gic_regdata[48] = {
+    /* GICD + GICR (per-CPU redistributor) */
+    uint8_t gic_regdata[32] = {
         /* GICD: 0x00000000 0x08000000 0x00000000 0x00010000 */
         0,0,0,0, 0x08,0,0,0,  0,0,0,0, 0,1,0,0,
-        /* GICR: 0x00000000 0x08010000 0x00000000 0x00010000 */
-        0,0,0,0, 0x08,0x01,0,0, 0,0,0,0, 0,1,0,0,
-        /* GITS: 0x00000000 0x08020000 0x00000000 0x00010000 */
-        0,0,0,0, 0x08,0x02,0,0, 0,0,0,0, 0,1,0,0,
+        /* GICR: 0x00000000 0x08010000 0x00000000 0x00010000 * num_cpus */
+        0,0,0,0, 0x08,0x01,0,0, 0,0,0,0,
+        (uint8_t)((config->num_cpus * 0x20000) >> 24),
+        (uint8_t)((config->num_cpus * 0x20000) >> 16),
+        (uint8_t)((config->num_cpus * 0x20000) >> 8),
+        (uint8_t)(config->num_cpus * 0x20000),
     };
-    w_prop(&w, "reg", gic_regdata, 48);
+    w_prop(&w, "reg", gic_regdata, 32);
     w_prop_empty(&w, "ranges");
     w_end_node(&w);
 
@@ -361,7 +364,10 @@ dtb_config_t dtb_config_default(int num_cpus, uint64_t ram_size)
             { 0x20040000, 44, 3 },  /* virtio-console */
         },
         .num_virtio = 5,
-        .cmdline = "console=ttyAMA0 earlycon=pl011,0x10000000 root=/dev/vda rw",
+        .cmdline = "console=ttyAMA0 earlycon=pl011,0x10000000 "
+                   "androidboot.hardware=siliconv "
+                   "androidboot.selinux=permissive "
+                   "root=/dev/vda rw",
     };
     return cfg;
 }

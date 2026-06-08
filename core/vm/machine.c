@@ -16,42 +16,18 @@
 #include <stdlib.h>
 #include <signal.h>
 
-/* ── MMIO handler wrapper (hv_ops ← machine) ──── */
-typedef struct {
-    sv_machine_t *machine;
-    uint64_t base;
-} mmio_wrapper_t;
-
-static uint64_t mmio_read_wrapper(void *opaque, uint64_t offset, int size)
+/* ── MMIO dispatch callbacks (backend → machine) ── */
+static uint64_t machine_mmio_read(void *opaque, uint64_t addr, int size)
 {
-    mmio_wrapper_t *w = (mmio_wrapper_t *)opaque;
-    return sv_mmio_read(w->machine, w->base + offset, size);
+    sv_machine_t *vm = (sv_machine_t *)opaque;
+    return sv_mmio_read(vm, addr, size);
 }
 
-static void mmio_write_wrapper(void *opaque, uint64_t offset,
+static void machine_mmio_write(void *opaque, uint64_t addr,
                                 uint64_t value, int size)
 {
-    mmio_wrapper_t *w = (mmio_wrapper_t *)opaque;
-    sv_mmio_write(w->machine, w->base + offset, value, size);
-}
-
-static mmio_wrapper_t mmio_wrappers[8];
-static int mmio_wrapper_count = 0;
-
-static sv_mmio_handler_t make_mmio_handler(sv_machine_t *vm, uint64_t base)
-{
-    if (mmio_wrapper_count >= 8)
-        return (sv_mmio_handler_t){NULL, NULL, NULL};
-
-    int idx = mmio_wrapper_count++;
-    mmio_wrappers[idx].machine = vm;
-    mmio_wrappers[idx].base = base;
-
-    return (sv_mmio_handler_t){
-        .read = mmio_read_wrapper,
-        .write = mmio_write_wrapper,
-        .opaque = &mmio_wrappers[idx],
-    };
+    sv_machine_t *vm = (sv_machine_t *)opaque;
+    sv_mmio_write(vm, addr, value, size);
 }
 
 /* ── UART TX callback ──────────────────────────── */
@@ -119,6 +95,8 @@ void sv_machine_destroy(sv_machine_t *vm)
 {
     if (vm->virtio_blk_enabled)
         virtio_blk_destroy(&vm->virtio_blk);
+    if (vm->virtio_console_enabled)
+        virtio_console_destroy(&vm->virtio_console);
 
     if (vm->ram)
         free(vm->ram);
@@ -263,6 +241,20 @@ int sv_machine_attach_virtio_blk(sv_machine_t *vm, const char *image_path,
         vm->dtb_config.virtio[0].base = 0x20000000;
         vm->dtb_config.virtio[0].irq = 40;
         vm->dtb_config.virtio[0].device_id = 2;
+        /* Wire GIC for interrupt delivery */
+        virtio_set_gic(&vm->virtio_blk.vdev, &vm->gic);
+    }
+    return ret;
+}
+
+int sv_machine_attach_virtio_console(sv_machine_t *vm)
+{
+    int ret = virtio_console_init(&vm->virtio_console,
+                                   44,  /* IRQ 44 per spec */
+                                   vm->ram, vm->ram_base, vm->ram_size);
+    if (ret == 0) {
+        vm->virtio_console_enabled = true;
+        virtio_set_gic(&vm->virtio_console.vdev, &vm->gic);
     }
     return ret;
 }
@@ -276,10 +268,12 @@ uint64_t sv_mmio_read(sv_machine_t *vm, uint64_t addr, int size)
         return gicd_mmio_read(&vm->gic, addr - 0x08000000, size);
     }
 
-    /* GIC Redistributor: 0x08010000 - 0x0801FFFF */
-    if (addr >= 0x08010000 && addr < 0x08020000) {
-        int cpu = 0;  /* TODO: determine which CPU is accessing */
-        return gicr_mmio_read(&vm->gic, cpu, addr - 0x08010000, size);
+    /* GIC Redistributor: 0x08010000 - 0x0801FFFF per CPU
+     * Each CPU's redistributor is at 0x08010000 + cpu * 0x20000 */
+    if (addr >= 0x08010000 && addr < 0x08010000 + vm->num_cpus * 0x20000) {
+        int cpu = (addr - 0x08010000) / 0x20000;
+        uint64_t off = (addr - 0x08010000) % 0x20000;
+        return gicr_mmio_read(&vm->gic, cpu, off, size);
     }
 
     /* UART0: 0x10000000 - 0x1000FFFF */
@@ -291,6 +285,12 @@ uint64_t sv_mmio_read(sv_machine_t *vm, uint64_t addr, int size)
     if (addr >= 0x20000000 && addr < 0x20010000 && vm->virtio_blk_enabled) {
         return virtio_mmio_read(&vm->virtio_blk.vdev,
                                 addr - 0x20000000, size);
+    }
+
+    /* Virtio-CONSOLE: 0x20040000 - 0x2004FFFF */
+    if (addr >= 0x20040000 && addr < 0x20050000 && vm->virtio_console_enabled) {
+        return virtio_mmio_read(&vm->virtio_console.vdev,
+                                addr - 0x20040000, size);
     }
 
     fprintf(stderr, "sv: unmapped MMIO read at 0x%lx (size=%d)\n",
@@ -306,10 +306,11 @@ void sv_mmio_write(sv_machine_t *vm, uint64_t addr, uint64_t value, int size)
         return;
     }
 
-    /* GIC Redistributor */
-    if (addr >= 0x08010000 && addr < 0x08020000) {
-        int cpu = 0;
-        gicr_mmio_write(&vm->gic, cpu, addr - 0x08010000, value, size);
+    /* GIC Redistributor — per-CPU */
+    if (addr >= 0x08010000 && addr < 0x08010000 + vm->num_cpus * 0x20000) {
+        int cpu = (addr - 0x08010000) / 0x20000;
+        uint64_t off = (addr - 0x08010000) % 0x20000;
+        gicr_mmio_write(&vm->gic, cpu, off, value, size);
         return;
     }
 
@@ -323,6 +324,13 @@ void sv_mmio_write(sv_machine_t *vm, uint64_t addr, uint64_t value, int size)
     if (addr >= 0x20000000 && addr < 0x20010000 && vm->virtio_blk_enabled) {
         virtio_mmio_write(&vm->virtio_blk.vdev,
                           addr - 0x20000000, value, size);
+        return;
+    }
+
+    /* Virtio-CONSOLE */
+    if (addr >= 0x20040000 && addr < 0x20050000 && vm->virtio_console_enabled) {
+        virtio_mmio_write(&vm->virtio_console.vdev,
+                          addr - 0x20040000, value, size);
         return;
     }
 
@@ -401,21 +409,23 @@ int sv_machine_run(sv_machine_t *vm)
     cfg.dtb_addr = vm->dtb_addr;
     cfg.cmdline = vm->dtb_config.cmdline;
 
+    /* Wire MMIO dispatch callbacks */
+    cfg.mmio_read = machine_mmio_read;
+    cfg.mmio_write = machine_mmio_write;
+    cfg.callback_opaque = vm;
+
     sv_vm_t *hvm = hv->vm_create(&cfg);
     if (!hvm) {
         fprintf(stderr, "sv: VM creation failed\n");
         return -1;
     }
 
-    /* ── Register MMIO regions ──────────────────── */
-    sv_mmio_handler_t uart_h = make_mmio_handler(vm, 0x10000000);
+    /* ── Register MMIO regions (informational) ──── */
     if (hv->mmio_register) {
-        hv->mmio_register(hvm, 0x10000000, 0x10000, &uart_h);
-    }
-
-    sv_mmio_handler_t blk_h = make_mmio_handler(vm, 0x20000000);
-    if (vm->virtio_blk_enabled && hv->mmio_register) {
-        hv->mmio_register(hvm, 0x20000000, 0x10000, &blk_h);
+        sv_mmio_handler_t dummy = {NULL, NULL, NULL};
+        hv->mmio_register(hvm, 0x10000000, 0x10000, &dummy);
+        if (vm->virtio_blk_enabled)
+            hv->mmio_register(hvm, 0x20000000, 0x10000, &dummy);
     }
 
     /* ── Load kernel/DTB into backend RAM ───────── */
@@ -433,8 +443,6 @@ int sv_machine_run(sv_machine_t *vm)
         vcpus[i] = hv->vcpu_create(hvm, i);
         if (!vcpus[i]) {
             fprintf(stderr, "sv: vCPU %d creation failed\n", i);
-            for (int j = 0; j < i; j++)
-                /* no vcpu_destroy op — rely on vm_destroy */;
             hv->vm_destroy(hvm);
             return -1;
         }
@@ -447,12 +455,12 @@ int sv_machine_run(sv_machine_t *vm)
         }
     }
 
-    /* ── Run loop (vCPU 0) ──────────────────────── */
+    /* ── Run loop (vCPU 0, others parked) ───────── */
     vm->running = true;
     sv_vcpu_exit_t exit_info;
     int ret = 0;
 
-    printf("sv: entering main loop\n");
+    printf("sv: entering main loop (vCPU 0)\n");
 
     while (vm->running) {
         ret = hv->vcpu_run(vcpus[0], &exit_info);
@@ -461,10 +469,13 @@ int sv_machine_run(sv_machine_t *vm)
             break;
         }
 
+        /* MMIO is now handled inside the KVM backend via callbacks.
+         * The backend calls machine_mmio_read/write directly on
+         * KVM_EXIT_MMIO, so no dispatch needed here. */
         switch (exit_info.type) {
         case SV_EXIT_MMIO_READ:
         case SV_EXIT_MMIO_WRITE:
-            /* Handled internally by the HVF backend */
+            /* Already handled by backend */
             break;
 
         case SV_EXIT_HLT:
