@@ -41,9 +41,13 @@ A **virtual ARM64 phone platform** in C (C11). Defines virtual hardware (SVABI v
 ## Build & Run
 
 ```bash
-# Host build (x86_64 macOS / Linux — placeholder main loop)
+# CLI
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
+./build/sv-cli --help
+
+# Cocoa app (macOS)
+open build/SiliconV.app
 
 # Full build with ARM64 boot stub (needs aarch64-linux-gnu cross-compiler)
 # CMake auto-detects: aarch64-linux-gnu-as, ld, objcopy

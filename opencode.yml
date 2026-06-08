@@ -40,7 +40,7 @@ command:
       Build the SiliconV project:
       1. cmake -B build -DCMAKE_BUILD_TYPE=Debug
       2. cmake --build build
-      3. Targets: sv-cli (CLI tool), SiliconV.app (Cocoa GUI, macOS only)
+      3. Targets: sv-cli (CLI), SiliconV.app (Cocoa)
       4. Launch: open build/SiliconV.app (Cocoa) or ./build/sv-cli --help (CLI)
       5. Report any errors or warnings.
     description: "Build SiliconV"

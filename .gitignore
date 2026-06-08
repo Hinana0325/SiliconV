@@ -6,6 +6,15 @@ build/
 *.a
 *.so
 *.dylib
+*.app
+*.icns
+
+# Generated icon source
+/frontend/cocoa/SiliconV.png
+
+# Xcode
+*.xcworkspace
+*.xcuserdata
 
 # IDE
 .vscode/

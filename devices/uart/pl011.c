@@ -8,6 +8,7 @@
 #include "pl011.h"
 #include <string.h>
 #include <stdio.h>
+#include "../../core/irq/gic.h"
 
 void pl011_init(pl011_state_t *uart, int irq_num)
 {
@@ -30,6 +31,13 @@ void pl011_set_tx_callback(pl011_state_t *uart,
     uart->tx_opaque = opaque;
 }
 
+void pl011_set_gic(pl011_state_t *uart, void *gic)
+{
+    uart->gic = gic;
+}
+
+static void pl011_update_irq(pl011_state_t *uart);
+
 void pl011_rx_put(pl011_state_t *uart, uint8_t byte)
 {
     if (uart->rx_count >= 256)
@@ -41,15 +49,22 @@ void pl011_rx_put(pl011_state_t *uart, uint8_t byte)
 
     /* Raise RX interrupt if not masked */
     uart->ris |= PL011_INT_RX;
-    /* TODO: notify GIC to raise IRQ */
+    pl011_update_irq(uart);
 }
 
 static void pl011_update_irq(pl011_state_t *uart)
 {
     /* MIS = RIS & ~IMSC */
     uint32_t mis = uart->ris & ~uart->imsc;
-    /* TODO: if MIS != 0, raise IRQ via GIC */
-    (void)mis;
+    gic_state_t *gic = (gic_state_t*)uart->gic;
+
+    if (!gic)
+        return;
+
+    if (mis)
+        gic_raise_spi(gic, uart->irq_num);
+    else
+        gic_lower_spi(gic, uart->irq_num);
 }
 
 uint64_t pl011_mmio_read(pl011_state_t *uart, uint64_t offset, int size)

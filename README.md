@@ -49,7 +49,6 @@ Display:  virtio-gpu + minigbm + drm_hwcomposer
 ## Project Structure
 
 ```
-SiliconV/
 ├── spec/              # Hardware specification (frozen)
 │   ├── svabi/         #   ABI contract
 │   ├── memory/        #   MMIO layout

@@ -97,6 +97,7 @@ int sv_machine_init(sv_machine_t *vm, int num_cpus, uint64_t ram_size)
 
     pl011_init(&vm->uart, 32);
     pl011_set_tx_callback(&vm->uart, machine_uart_tx, NULL);
+    pl011_set_gic(&vm->uart, &vm->gic);
 
     vm->dtb_config = dtb_config_default(num_cpus, ram_size);
 

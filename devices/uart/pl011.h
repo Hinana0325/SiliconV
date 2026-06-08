@@ -81,6 +81,9 @@ void pl011_set_tx_callback(pl011_state_t *uart,
                            void (*cb)(uint8_t, void*),
                            void *opaque);
 
+/* Attach the UART to a GIC instance for IRQ delivery */
+void pl011_set_gic(pl011_state_t *uart, void *gic);
+
 /* Inject a byte into RX FIFO (host → guest) */
 void pl011_rx_put(pl011_state_t *uart, uint8_t byte);
 
