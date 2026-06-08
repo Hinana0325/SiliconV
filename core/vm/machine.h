@@ -26,6 +26,7 @@
 #include "../../devices/uart/pl011.h"
 #include "../../devices/transport/virtio_mmio.h"
 #include "../../devices/virtio-blk/virtio_blk.h"
+#include "../../devices/virtio-net/virtio_net.h"
 #include "../../devices/virtio-console/virtio_console.h"
 #include "../../hypervisor/abstraction/hv.h"
 
@@ -40,6 +41,8 @@ typedef struct {
     /* Virtio devices */
     virtio_blk_t    virtio_blk;
     bool            virtio_blk_enabled;
+    virtio_net_t    virtio_net;
+    bool            virtio_net_enabled;
     virtio_console_t virtio_console;
     bool            virtio_console_enabled;
 
@@ -74,6 +77,12 @@ int sv_machine_load_dtb(sv_machine_t *vm, const char *path);
 /* Attach a virtio-blk device with a disk image */
 int sv_machine_attach_virtio_blk(sv_machine_t *vm, const char *image_path,
                                   bool read_only);
+
+/* Attach a virtio-net device */
+int sv_machine_attach_virtio_net(sv_machine_t *vm);
+
+/* Attach a virtio-console device */
+int sv_machine_attach_virtio_console(sv_machine_t *vm);
 
 /* Generate and load the DTB */
 int sv_machine_generate_dtb(sv_machine_t *vm);

@@ -95,6 +95,8 @@ void sv_machine_destroy(sv_machine_t *vm)
 {
     if (vm->virtio_blk_enabled)
         virtio_blk_destroy(&vm->virtio_blk);
+    if (vm->virtio_net_enabled)
+        virtio_net_destroy(&vm->virtio_net);
     if (vm->virtio_console_enabled)
         virtio_console_destroy(&vm->virtio_console);
 
@@ -259,6 +261,18 @@ int sv_machine_attach_virtio_console(sv_machine_t *vm)
     return ret;
 }
 
+int sv_machine_attach_virtio_net(sv_machine_t *vm)
+{
+    int ret = virtio_net_init(&vm->virtio_net,
+                               41,  /* IRQ 41 per spec */
+                               vm->ram, vm->ram_base, vm->ram_size);
+    if (ret == 0) {
+        vm->virtio_net_enabled = true;
+        virtio_set_gic(&vm->virtio_net.vdev, &vm->gic);
+    }
+    return ret;
+}
+
 /* ── MMIO Dispatch ─────────────────────────────── */
 
 uint64_t sv_mmio_read(sv_machine_t *vm, uint64_t addr, int size)
@@ -291,6 +305,12 @@ uint64_t sv_mmio_read(sv_machine_t *vm, uint64_t addr, int size)
     if (addr >= 0x20040000 && addr < 0x20050000 && vm->virtio_console_enabled) {
         return virtio_mmio_read(&vm->virtio_console.vdev,
                                 addr - 0x20040000, size);
+    }
+
+    /* Virtio-NET: 0x20010000 - 0x2001FFFF */
+    if (addr >= 0x20010000 && addr < 0x20020000 && vm->virtio_net_enabled) {
+        return virtio_mmio_read(&vm->virtio_net.vdev,
+                                addr - 0x20010000, size);
     }
 
     fprintf(stderr, "sv: unmapped MMIO read at 0x%lx (size=%d)\n",
@@ -331,6 +351,13 @@ void sv_mmio_write(sv_machine_t *vm, uint64_t addr, uint64_t value, int size)
     if (addr >= 0x20040000 && addr < 0x20050000 && vm->virtio_console_enabled) {
         virtio_mmio_write(&vm->virtio_console.vdev,
                           addr - 0x20040000, value, size);
+        return;
+    }
+
+    /* Virtio-NET */
+    if (addr >= 0x20010000 && addr < 0x20020000 && vm->virtio_net_enabled) {
+        virtio_mmio_write(&vm->virtio_net.vdev,
+                          addr - 0x20010000, value, size);
         return;
     }
 

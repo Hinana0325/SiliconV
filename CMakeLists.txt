@@ -36,7 +36,8 @@ target_include_directories(sv_bootimg PUBLIC core/vm)
 add_library(sv_machine STATIC core/vm/machine.c)
 target_include_directories(sv_machine PUBLIC
     core/vm core/irq core/memory core/object
-    devices/uart devices/transport devices/virtio-blk devices/virtio-console
+    devices/uart devices/transport devices/virtio-blk
+    devices/virtio-net devices/virtio-console
     hypervisor/abstraction
 )
 
@@ -51,6 +52,11 @@ target_include_directories(sv_virtio PUBLIC devices/transport)
 add_library(sv_virtio_blk STATIC devices/virtio-blk/virtio_blk.c)
 target_include_directories(sv_virtio_blk PUBLIC
     devices/virtio-blk devices/transport
+)
+
+add_library(sv_virtio_net STATIC devices/virtio-net/virtio_net.c devices/virtio-net/tap_backend.c)
+target_include_directories(sv_virtio_net PUBLIC
+    devices/virtio-net devices/transport
 )
 
 add_library(sv_virtio_console STATIC devices/virtio-console/virtio_console.c)
@@ -82,7 +88,7 @@ endif()
 add_executable(sv-cli frontend/cli/main.c)
 target_link_libraries(sv-cli
     sv_machine sv_bootimg sv_gic sv_psci sv_dtb
-    sv_uart sv_virtio sv_virtio_blk sv_virtio_console sv_hv
+    sv_uart sv_virtio sv_virtio_blk sv_virtio_net sv_virtio_console sv_hv
 )
 if(SV_HAS_KVM)
     target_link_libraries(sv-cli sv_hv_kvm)

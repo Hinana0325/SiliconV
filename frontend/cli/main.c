@@ -117,6 +117,16 @@ int main(int argc, char *argv[])
         }
     }
 
+    /* Attach network device */
+    if (sv_machine_attach_virtio_net(&vm) < 0) {
+        fprintf(stderr, "sv: warning: failed to attach virtio-net\n");
+    }
+
+    /* Attach console device */
+    if (sv_machine_attach_virtio_console(&vm) < 0) {
+        fprintf(stderr, "sv: warning: failed to attach virtio-console\n");
+    }
+
     /* Update cmdline if provided */
     if (cmdline)
         vm.dtb_config.cmdline = cmdline;

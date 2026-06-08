@@ -1,0 +1,20 @@
+# Android fstab for SiliconV Virtual Machine
+# Mount points for AOSP GSI boot
+
+# System partition (read-only)
+/dev/vda    /system      ext4    ro,barrier=1    wait,first_stage_mount
+
+# Vendor partition (read-only, if present)
+/dev/vdb    /vendor      ext4    ro,barrier=1    wait
+
+# Data partition (read-write)
+/dev/vdc    /data        ext4    noatime,nosuid,nodev,barrier=1,noauto_da_alloc    wait,check
+
+# Cache partition
+/dev/vdd    /cache       ext4    noatime,nosuid,nodev,barrier=1,noauto_da_alloc    wait,check
+
+# Metadata partition (for encryption)
+/dev/vde    /metadata    ext4    nodev,noatime,nosuid,errors=panic    wait,formattable
+
+# SD card (emulated)
+tmpfs    /mnt/sdcard    tmpfs    ro,mode=0755,uid=1000,gid=1015    wait

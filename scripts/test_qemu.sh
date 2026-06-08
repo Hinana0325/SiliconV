@@ -1,112 +1,86 @@
 #!/bin/bash
-#
 # SiliconV — QEMU Test Script
 #
-# Tests the SiliconV boot stub using QEMU ARM64 system emulation.
-# This validates UART output without needing KVM for ARM64.
+# Tests SiliconV kernel with QEMU (ARM64 system emulation).
+# Requires: qemu-system-aarch64, aarch64 cross-compiler
 #
-# Usage: ./scripts/test_qemu.sh
-#
-# Requirements:
-#   apt install qemu-system-aarch64 gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+# Usage: ./scripts/test_qemu.sh [kernel] [rootfs]
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-BUILD_DIR="$PROJECT_DIR/build"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+KERNEL="${1:-${PROJECT_DIR}/kernel/out/Image}"
+ROOTFS="${2:-${PROJECT_DIR}/build/rootfs.img}"
+DTB=""
+CMDLINE="console=ttyAMA0 earlycon=pl011,0x10000000 root=/dev/vda rw"
 
-info()  { echo -e "${GREEN}[sv]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[sv]${NC} $*"; }
-error() { echo -e "${RED}[sv]${NC} $*" >&2; }
+echo "=== SiliconV QEMU Test ==="
+echo "Kernel: ${KERNEL}"
+echo "Rootfs: ${ROOTFS}"
+echo ""
 
-# ── Check dependencies ──────────────────────────
-check_deps() {
-    local missing=()
+# Check for QEMU
+if ! command -v qemu-system-aarch64 &>/dev/null; then
+    echo "ERROR: qemu-system-aarch64 not found"
+    echo "Install with: apt install qemu-system-arm"
+    exit 1
+fi
 
-    command -v qemu-system-aarch64 >/dev/null || missing+=(qemu-system-aarch64)
-    command -v aarch64-linux-gnu-as >/dev/null  || missing+=(gcc-aarch64-linux-gnu)
-    command -v aarch64-linux-gnu-ld >/dev/null  || missing+=(binutils-aarch64-linux-gnu)
+# Check kernel exists
+if [ ! -f "${KERNEL}" ]; then
+    echo "ERROR: Kernel not found: ${KERNEL}"
+    echo "Run: ./scripts/build_kernel.sh"
+    exit 1
+fi
 
-    if [ ${#missing[@]} -gt 0 ]; then
-        error "Missing dependencies: ${missing[*]}"
-        echo "  Install with: apt install ${missing[*]}"
-        exit 1
+# Build DTB if not present
+if [ ! -f "${PROJECT_DIR}/build/siliconv.dtb" ]; then
+    echo "Generating DTB..."
+    # Use dtc to compile DTS (if available)
+    if command -v dtc &>/dev/null && [ -f "${PROJECT_DIR}/spec/boot/siliconv.dts" ]; then
+        dtc -I dts -O dtb -o "${PROJECT_DIR}/build/siliconv.dtb" \
+            "${PROJECT_DIR}/spec/boot/siliconv.dts"
+        DTB="${PROJECT_DIR}/build/siliconv.dtb"
     fi
-}
+fi
 
-# ── Build boot stub ──────────────────────────────
-build_stub() {
-    info "Building ARM64 boot stub..."
-    mkdir -p "$BUILD_DIR"
+# Build QEMU command
+QEMU_ARGS=(
+    -machine virt,gic-version=3,highmem=off
+    -cpu cortex-a55
+    -smp 4
+    -m 4G
+    -kernel "${KERNEL}"
+    -nographic
+    -serial mon:stdio
+)
 
-    aarch64-linux-gnu-as \
-        -o "$BUILD_DIR/boot_stub.o" \
-        "$PROJECT_DIR/core/vm/boot_stub.S"
+# Add DTB if available
+if [ -n "${DTB}" ] && [ -f "${DTB}" ]; then
+    QEMU_ARGS+=(-dtb "${DTB}")
+fi
 
-    aarch64-linux-gnu-ld \
-        -T "$PROJECT_DIR/core/vm/boot_stub.ld" \
-        -o "$BUILD_DIR/boot_stub.elf" \
-        "$BUILD_DIR/boot_stub.o"
+# Add rootfs if available
+if [ -f "${ROOTFS}" ]; then
+    QEMU_ARGS+=(
+        -drive "file=${ROOTFS},format=raw,if=virtio,readonly=off"
+        -append "${CMDLINE}"
+    )
+else
+    echo "WARNING: No rootfs found, booting with initramfs only"
+    QEMU_ARGS+=(-append "${CMDLINE}")
+fi
 
-    aarch64-linux-gnu-objcopy \
-        -O binary \
-        "$BUILD_DIR/boot_stub.elf" \
-        "$BUILD_DIR/boot_stub.bin"
+# Add network
+QEMU_ARGS+=(
+    -device virtio-net-device,netdev=net0
+    -netdev user,id=net0,hostfwd=tcp::5555-:5555
+)
 
-    local size=$(stat -c%s "$BUILD_DIR/boot_stub.bin" 2>/dev/null || stat -f%z "$BUILD_DIR/boot_stub.bin")
-    info "Boot stub: $BUILD_DIR/boot_stub.bin ($size bytes)"
-}
+echo "Starting QEMU..."
+echo "Press Ctrl-A X to exit"
+echo ""
 
-# ── Run in QEMU ──────────────────────────────────
-run_qemu() {
-    info "Starting QEMU (ARM64 virt machine)..."
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-    # QEMU virt machine with:
-    # - 1 CPU (Cortex-A57 — closest to A55 that QEMU supports well)
-    # - 128M RAM
-    # - Load boot stub binary at address 0x400000000
-    # - Serial output to terminal
-    # - Auto-exit after 5 seconds of no activity
-
-    qemu-system-aarch64 \
-        -machine virt \
-        -cpu cortex-a57 \
-        -m 128M \
-        -nographic \
-        -semihosting \
-        -device loader,file="$BUILD_DIR/boot_stub.bin",addr=0x400000000 \
-        -serial mon:stdio \
-        -no-reboot \
-        -d guest_errors \
-        2>&1 | head -20
-
-    local exit_code=${PIPESTATUS[0]}
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-
-    if [ $exit_code -eq 0 ]; then
-        info "QEMU exited cleanly"
-    else
-        warn "QEMU exited with code $exit_code"
-    fi
-}
-
-# ── Main ─────────────────────────────────────────
-main() {
-    info "SiliconV QEMU Test"
-    echo ""
-    check_deps
-    build_stub
-    run_qemu
-}
-
-main "$@"
+exec qemu-system-aarch64 "${QEMU_ARGS[@]}"
