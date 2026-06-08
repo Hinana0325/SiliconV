@@ -1,5 +1,7 @@
 # SiliconV
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 A virtual phone hardware specification and hypervisor platform.
 
 **SiliconV is not an emulator. It defines a virtual hardware interface.**
