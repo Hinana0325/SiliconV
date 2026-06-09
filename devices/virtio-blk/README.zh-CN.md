@@ -53,7 +53,7 @@ dd if=/dev/zero of=rootfs.img bs=1M count=4096
 mkfs.ext4 rootfs.img
 
 # 使用磁盘运行
-./siliconv -k Image -r rootfs.img
+./build/sv-cli -k Image -r rootfs.img
 ```
 
 ## 参考

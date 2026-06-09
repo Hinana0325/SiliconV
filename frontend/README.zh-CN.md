@@ -30,7 +30,7 @@ SiliconV 的前端应用。多个 UI 选项适用于不同平台。
 主要界面。从命令行启动 SiliconV：
 
 ```bash
-./siliconv -k Image -r rootfs.img [--cpus 4] [--memory 4G]
+./build/sv-cli -k Image -r rootfs.img --cpus 4 --memory 4096
 ```
 
 ## Cocoa 前端（macOS）

@@ -12,6 +12,7 @@
 #include <string.h>
 #include <signal.h>
 #include <getopt.h>
+#include <errno.h>
 
 static volatile int running = 1;
 static sv_machine_t *g_vm = NULL;
@@ -22,6 +23,23 @@ static void sigint_handler(int sig)
     running = 0;
     if (g_vm)
         sv_machine_stop(g_vm);
+}
+
+static int parse_positive_int(const char *text, const char *name,
+                              int min_value, int max_value)
+{
+    char *end = NULL;
+    errno = 0;
+    long value = strtol(text, &end, 10);
+
+    if (errno != 0 || !end || *end != '\0' ||
+        value < min_value || value > max_value) {
+        fprintf(stderr, "sv: invalid %s '%s' (expected %d-%d)\n",
+                name, text, min_value, max_value);
+        return -1;
+    }
+
+    return (int)value;
 }
 
 static void print_usage(const char *prog)
@@ -36,8 +54,9 @@ static void print_usage(const char *prog)
         "  -d, --dtb PATH       Device tree blob (optional, generated if omitted)\n"
         "  -r, --rootfs PATH    Root filesystem image for virtio-blk\n"
         "  -c, --cmdline STR    Kernel command line\n"
-        "  -m, --memory SIZE    Guest RAM in MB (default: 4096)\n"
-        "  -n, --cpus NUM       Number of vCPUs (default: 4)\n"
+        "  -m, --memory SIZE    Guest RAM in MB (default: 4096, minimum: 64)\n"
+        "  -n, --cpus NUM       Number of vCPUs (default: 4, max: 8)\n"
+        "      --dry-run        Load and validate configuration without starting vCPUs\n"
         "  -h, --help           Show this help\n",
         prog);
 }
@@ -71,8 +90,14 @@ int main(int argc, char *argv[])
         case 'd': dtb_path = optarg; break;
         case 'r': rootfs_path = optarg; break;
         case 'c': cmdline = optarg; break;
-        case 'm': ram_mb = atoi(optarg); break;
-        case 'n': num_cpus = atoi(optarg); break;
+        case 'm':
+            ram_mb = parse_positive_int(optarg, "memory size", 64, 1024 * 1024);
+            if (ram_mb < 0) return 1;
+            break;
+        case 'n':
+            num_cpus = parse_positive_int(optarg, "CPU count", 1, 8);
+            if (num_cpus < 0) return 1;
+            break;
         case 1000: dry_run = 1; break;
         case 'h': print_usage(argv[0]); return 0;
         default:  print_usage(argv[0]); return 1;
@@ -82,16 +107,6 @@ int main(int argc, char *argv[])
     if (!kernel_path) {
         fprintf(stderr, "sv: kernel image required (-k)\n");
         print_usage(argv[0]);
-        return 1;
-    }
-
-    if (num_cpus < 1 || num_cpus > 8) {
-        fprintf(stderr, "sv: invalid CPU count %d (expected 1-8)\n", num_cpus);
-        return 1;
-    }
-
-    if (ram_mb < 64) {
-        fprintf(stderr, "sv: invalid memory size %d MB (minimum: 64 MB)\n", ram_mb);
         return 1;
     }
 

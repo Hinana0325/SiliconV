@@ -9,8 +9,7 @@ endif()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-include(CTest)
-option(SV_BUILD_TESTS "Build SiliconV unit tests" ${BUILD_TESTING})
+option(SV_BUILD_TESTS "Build SiliconV unit tests" OFF)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0 -DSV_DEBUG")
@@ -104,6 +103,8 @@ endif()
 # ── Tests ────────────────────────────────────────
 
 if(SV_BUILD_TESTS)
+    enable_testing()
+
     add_executable(test_dtb tests/unit/test_dtb.c)
     target_link_libraries(test_dtb sv_dtb)
     add_test(NAME test_dtb COMMAND test_dtb)

@@ -27,7 +27,7 @@
 ```bash
 # 需要 Xcode 命令行工具
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target siliconv-cocoa
+cmake --build build --target SiliconV
 ```
 
 ## 架构

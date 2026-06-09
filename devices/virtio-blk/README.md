@@ -53,7 +53,7 @@ dd if=/dev/zero of=rootfs.img bs=1M count=4096
 mkfs.ext4 rootfs.img
 
 # Run with the disk
-./siliconv -k Image -r rootfs.img
+./build/sv-cli -k Image -r rootfs.img
 ```
 
 ## Reference
