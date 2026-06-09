@@ -5,43 +5,37 @@ The primary SiliconV frontend. Minimal, scriptable, and works on all platforms.
 ## Usage
 
 ```bash
-./siliconv [options]
+./build/sv-cli [OPTIONS]
 
 Options:
-  -k, --kernel <path>     Kernel image path (required)
-  -r, --rootfs <path>     Root filesystem image (required)
-  -c, --cpus <n>          Number of vCPUs (default: 4)
-  -m, --memory <size>     Guest RAM (default: 4G)
-  -s, --serial <path>     Serial output to file (default: stdout)
-  -d, --disk <path>       Additional virtio-blk disk
-  -g, --gpu               Enable virtio-gpu
-  -n, --net               Enable virtio-net
-  -v, --verbose           Verbose logging
-  -h, --help              Show this help
+  -k, --kernel PATH    Kernel image or Android boot.img (required)
+  -d, --dtb PATH       Device tree blob (optional, generated if omitted)
+  -r, --rootfs PATH    Root filesystem image for virtio-blk
+  -c, --cmdline STR    Kernel command line
+  -m, --memory SIZE    Guest RAM in MB (default: 4096, minimum: 64)
+  -n, --cpus NUM       Number of vCPUs (default: 4, max: 8)
+      --dry-run        Load and validate configuration without starting vCPUs
+  -h, --help           Show this help
 ```
 
 ## Examples
 
 ```bash
-# Basic boot
-./siliconv -k Image -r rootfs.img
+# Validate a kernel/rootfs configuration without starting vCPUs
+./build/sv-cli --dry-run -k Image -r rootfs.img -m 1024 -n 2
 
-# Custom config
-./siliconv -k Image -r rootfs.img -c 8 -m 8G -g -n
+# Basic ARM64 host boot
+./build/sv-cli -k Image -r rootfs.img
 
-# Serial to file
-./siliconv -k Image -r rootfs.img -s serial.log
+# Custom command line
+./build/sv-cli -k Image -r rootfs.img \
+  -c "console=ttyAMA0 earlycon=pl011,0x10000000 root=/dev/vda rw"
 ```
+
+On x86_64 and other hosts without a SiliconV hypervisor backend, `--dry-run` is the recommended smoke test because it still verifies argument parsing, image loading, DTB generation, and device setup.
 
 ## Files
 
 | File | Description |
 |------|-------------|
 | `main.c` | CLI entry point, argument parsing, VM launch |
-
-## Keyboard Shortcuts (when running)
-
-| Key | Action |
-|-----|--------|
-| `Ctrl-A X` | Exit |
-| `Ctrl-A C` | Serial console monitor |

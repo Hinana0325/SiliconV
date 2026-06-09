@@ -26,6 +26,8 @@ void psci_set_callback(psci_state_t *psci,
 uint64_t psci_handle_call(psci_state_t *psci, uint64_t function_id,
                           uint64_t arg1, uint64_t arg2, uint64_t arg3)
 {
+    (void)arg3;
+
     switch (function_id) {
     case PSCI_VERSION:
         /* Return PSCI v1.1 */

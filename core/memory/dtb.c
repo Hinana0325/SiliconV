@@ -46,6 +46,13 @@ typedef struct {
     int      depth;     /* Nesting depth */
 } dtb_writer_t;
 
+
+static uint32_t to_be32(uint32_t v)
+{
+    return ((v >> 24) & 0xFF) | ((v >> 8) & 0xFF00) |
+           ((v & 0xFF00) << 8) | ((v & 0xFF) << 24);
+}
+
 static void w_init(dtb_writer_t *w, uint8_t *buf, size_t bufsize)
 {
     w->buf = buf;
@@ -326,24 +333,16 @@ int dtb_generate(uint8_t *buf, size_t bufsize, const dtb_config_t *config)
     while (total_size & 3) total_size++;
 
     fdt_header_t *hdr = (fdt_header_t*)buf;
-    hdr->magic = 0xd00dfeed;
-    hdr->totalsize = total_size;
-    hdr->off_dt_struct = struct_start;
-    hdr->off_dt_strings = w.strstart;
-    hdr->off_mem_rsvmap = header_size;
-    hdr->version = 17;
-    hdr->last_comp_version = 16;
-    hdr->boot_cpuid_phys = 0;
-    hdr->size_dt_strings = strings_size;
-    hdr->size_dt_struct = struct_size;
-
-    /* Byte-swap header fields to big-endian */
-    uint32_t *fields = (uint32_t*)hdr;
-    for (int i = 0; i < 10; i++) {
-        uint32_t v = fields[i];
-        fields[i] = ((v >> 24) & 0xFF) | ((v >> 8) & 0xFF00) |
-                    ((v & 0xFF00) << 8) | ((v & 0xFF) << 24);
-    }
+    hdr->magic = to_be32(0xd00dfeed);
+    hdr->totalsize = to_be32((uint32_t)total_size);
+    hdr->off_dt_struct = to_be32((uint32_t)struct_start);
+    hdr->off_dt_strings = to_be32((uint32_t)w.strstart);
+    hdr->off_mem_rsvmap = to_be32((uint32_t)header_size);
+    hdr->version = to_be32(17);
+    hdr->last_comp_version = to_be32(16);
+    hdr->boot_cpuid_phys = to_be32(0);
+    hdr->size_dt_strings = to_be32((uint32_t)strings_size);
+    hdr->size_dt_struct = to_be32((uint32_t)struct_size);
 
     return total_size;
 }

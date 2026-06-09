@@ -99,6 +99,15 @@ cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
+### 冒烟测试 / dry run
+
+```bash
+# 不启动 vCPU，验证镜像加载、DTB 生成和设备装配
+./build/sv-cli --dry-run -k Image -r rootfs.img -m 1024 -n 2
+```
+
+这适合在 x86_64 开发机或没有 ARM64 KVM/HVF 的 CI 环境中快速确认配置可用。
+
 ### 构建 Android 内核
 
 ```bash
@@ -114,7 +123,7 @@ cmake --build build
 ### 在 ARM64 宿主上运行
 
 ```bash
-./build/siliconv -k Image -r rootfs.img
+./build/sv-cli -k Image -r rootfs.img
 ```
 
 ## 开发状态

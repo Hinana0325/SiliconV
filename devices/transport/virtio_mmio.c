@@ -246,12 +246,18 @@ void virtio_mmio_write(virtio_device_t *dev, uint64_t offset,
         else
             q->avail_addr = (q->avail_addr & 0x00000000FFFFFFFFULL) | ((uint64_t)(uint32_t)value << 32);
 
-        /* Cache: avail_ring = avail_addr + 2 (skip flags), avail_idx = avail_addr + 0 */
+        /*
+         * Virtio avail ring layout:
+         *   le16 flags;
+         *   le16 idx;
+         *   le16 ring[queue_size];
+         * Cache pointers to idx and the first ring entry.
+         */
         if (q->avail_addr >= dev->guest_ram_base &&
-            q->avail_addr < dev->guest_ram_base + dev->guest_ram_size) {
+            q->avail_addr + 4 <= dev->guest_ram_base + dev->guest_ram_size) {
             uint8_t *base = dev->guest_ram + (q->avail_addr - dev->guest_ram_base);
-            q->avail_idx = (uint16_t*)base;
-            q->avail_ring = (uint16_t*)(base + 2);
+            q->avail_idx = (uint16_t*)(base + 2);
+            q->avail_ring = (uint16_t*)(base + 4);
         }
         return;
     }
@@ -267,7 +273,7 @@ void virtio_mmio_write(virtio_device_t *dev, uint64_t offset,
 
         /* Cache: used_idx = used_addr + 2 (skip flags) */
         if (q->used_addr >= dev->guest_ram_base &&
-            q->used_addr < dev->guest_ram_base + dev->guest_ram_size) {
+            q->used_addr + 4 <= dev->guest_ram_base + dev->guest_ram_size) {
             uint8_t *base = dev->guest_ram + (q->used_addr - dev->guest_ram_base);
             q->used_idx = (uint16_t*)(base + 2);
         }

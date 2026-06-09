@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
     const char *cmdline = "console=ttyAMA0 earlycon=pl011,0x10000000 root=/dev/vda rw";
     int num_cpus = 4;
     int ram_mb = 4096;
+    int dry_run = 0;
 
     static struct option long_opts[] = {
         {"kernel",  required_argument, 0, 'k'},
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
         {"cmdline", required_argument, 0, 'c'},
         {"memory",  required_argument, 0, 'm'},
         {"cpus",    required_argument, 0, 'n'},
+        {"dry-run", no_argument,       0, 1000},
         {"help",    no_argument,       0, 'h'},
         {0, 0, 0, 0}
     };
@@ -71,6 +73,7 @@ int main(int argc, char *argv[])
         case 'c': cmdline = optarg; break;
         case 'm': ram_mb = atoi(optarg); break;
         case 'n': num_cpus = atoi(optarg); break;
+        case 1000: dry_run = 1; break;
         case 'h': print_usage(argv[0]); return 0;
         default:  print_usage(argv[0]); return 1;
         }
@@ -79,6 +82,16 @@ int main(int argc, char *argv[])
     if (!kernel_path) {
         fprintf(stderr, "sv: kernel image required (-k)\n");
         print_usage(argv[0]);
+        return 1;
+    }
+
+    if (num_cpus < 1 || num_cpus > 8) {
+        fprintf(stderr, "sv: invalid CPU count %d (expected 1-8)\n", num_cpus);
+        return 1;
+    }
+
+    if (ram_mb < 64) {
+        fprintf(stderr, "sv: invalid memory size %d MB (minimum: 64 MB)\n", ram_mb);
         return 1;
     }
 
@@ -130,6 +143,18 @@ int main(int argc, char *argv[])
     /* Update cmdline if provided */
     if (cmdline)
         vm.dtb_config.cmdline = cmdline;
+
+    if (!vm.dtb_addr && sv_machine_generate_dtb(&vm) < 0) {
+        sv_machine_destroy(&vm);
+        return 1;
+    }
+
+    if (dry_run) {
+        printf("sv: dry run complete — configuration is loadable\n");
+        sv_machine_destroy(&vm);
+        g_vm = NULL;
+        return 0;
+    }
 
     /* Run the VM */
     int ret = sv_machine_run(&vm);
