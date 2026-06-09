@@ -11,7 +11,10 @@ cmake --build build
 
 # 2. Get kernel + rootfs (see below)
 
-# 3. Run
+# 3. Validate configuration without starting vCPUs
+./build/sv-cli --dry-run -k Image -r rootfs.img
+
+# 4. Run
 ./build/sv-cli -k Image -r rootfs.img
 ```
 
@@ -90,6 +93,18 @@ docker run -v $(pwd):/workspace -it siliconv-build \
 ```
 
 ## Running
+
+### Smoke Test Without a Hypervisor Backend
+
+```bash
+./build/sv-cli --dry-run \
+    -k kernel/out/Image \
+    -r build/rootfs.img \
+    -m 1024 \
+    -n 2
+```
+
+`--dry-run` is useful on x86_64 CI and developer machines because it validates kernel loading, optional rootfs attachment, DTB generation, and device setup without requiring ARM64 KVM/HVF.
 
 ### On ARM64 Linux (with KVM)
 

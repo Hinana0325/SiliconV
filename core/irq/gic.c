@@ -137,7 +137,6 @@ int gic_acknowledge_irq(gic_state_t *gic, int cpu)
     uint8_t best_prio = 0xFF;
 
     /* Check SGI/PPI first (per-CPU) */
-    gic_redist_t *r = &gic->redist[cpu];
     for (int i = 0; i < GIC_SPI_BASE; i++) {
         gic_irq_t *p = &gic->irq[i];
         if (p->state == GIC_IRQ_PENDING && p->enabled) {

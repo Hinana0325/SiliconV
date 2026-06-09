@@ -12,6 +12,7 @@
 #include <string.h>
 #include <signal.h>
 #include <getopt.h>
+#include <errno.h>
 
 static volatile int running = 1;
 static sv_machine_t *g_vm = NULL;
@@ -22,6 +23,23 @@ static void sigint_handler(int sig)
     running = 0;
     if (g_vm)
         sv_machine_stop(g_vm);
+}
+
+static int parse_positive_int(const char *text, const char *name,
+                              int min_value, int max_value)
+{
+    char *end = NULL;
+    errno = 0;
+    long value = strtol(text, &end, 10);
+
+    if (errno != 0 || !end || *end != '\0' ||
+        value < min_value || value > max_value) {
+        fprintf(stderr, "sv: invalid %s '%s' (expected %d-%d)\n",
+                name, text, min_value, max_value);
+        return -1;
+    }
+
+    return (int)value;
 }
 
 static void print_usage(const char *prog)
@@ -36,8 +54,9 @@ static void print_usage(const char *prog)
         "  -d, --dtb PATH       Device tree blob (optional, generated if omitted)\n"
         "  -r, --rootfs PATH    Root filesystem image for virtio-blk\n"
         "  -c, --cmdline STR    Kernel command line\n"
-        "  -m, --memory SIZE    Guest RAM in MB (default: 4096)\n"
-        "  -n, --cpus NUM       Number of vCPUs (default: 4)\n"
+        "  -m, --memory SIZE    Guest RAM in MB (default: 4096, minimum: 64)\n"
+        "  -n, --cpus NUM       Number of vCPUs (default: 4, max: 8)\n"
+        "      --dry-run        Load and validate configuration without starting vCPUs\n"
         "  -h, --help           Show this help\n",
         prog);
 }
@@ -50,6 +69,7 @@ int main(int argc, char *argv[])
     const char *cmdline = "console=ttyAMA0 earlycon=pl011,0x10000000 root=/dev/vda rw";
     int num_cpus = 4;
     int ram_mb = 4096;
+    int dry_run = 0;
 
     static struct option long_opts[] = {
         {"kernel",  required_argument, 0, 'k'},
@@ -58,6 +78,7 @@ int main(int argc, char *argv[])
         {"cmdline", required_argument, 0, 'c'},
         {"memory",  required_argument, 0, 'm'},
         {"cpus",    required_argument, 0, 'n'},
+        {"dry-run", no_argument,       0, 1000},
         {"help",    no_argument,       0, 'h'},
         {0, 0, 0, 0}
     };
@@ -69,8 +90,15 @@ int main(int argc, char *argv[])
         case 'd': dtb_path = optarg; break;
         case 'r': rootfs_path = optarg; break;
         case 'c': cmdline = optarg; break;
-        case 'm': ram_mb = atoi(optarg); break;
-        case 'n': num_cpus = atoi(optarg); break;
+        case 'm':
+            ram_mb = parse_positive_int(optarg, "memory size", 64, 1024 * 1024);
+            if (ram_mb < 0) return 1;
+            break;
+        case 'n':
+            num_cpus = parse_positive_int(optarg, "CPU count", 1, 8);
+            if (num_cpus < 0) return 1;
+            break;
+        case 1000: dry_run = 1; break;
         case 'h': print_usage(argv[0]); return 0;
         default:  print_usage(argv[0]); return 1;
         }
@@ -130,6 +158,18 @@ int main(int argc, char *argv[])
     /* Update cmdline if provided */
     if (cmdline)
         vm.dtb_config.cmdline = cmdline;
+
+    if (!vm.dtb_addr && sv_machine_generate_dtb(&vm) < 0) {
+        sv_machine_destroy(&vm);
+        return 1;
+    }
+
+    if (dry_run) {
+        printf("sv: dry run complete — configuration is loadable\n");
+        sv_machine_destroy(&vm);
+        g_vm = NULL;
+        return 0;
+    }
 
     /* Run the VM */
     int ret = sv_machine_run(&vm);

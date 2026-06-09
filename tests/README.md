@@ -6,7 +6,7 @@ Automated tests for SiliconV components.
 
 | Category | Description | Status |
 |----------|-------------|--------|
-| [unit/](unit/) | Unit tests for individual components | 🔲 |
+| [unit/](unit/) | Unit tests for individual components | ✅ |
 | [integration/](integration/) | Integration tests (full VM boot) | 🔲 |
 | [performance/](performance/) | Performance benchmarks | 🔲 |
 | [android/](android/) | Android-specific tests (boot, graphics, IPC) | 🔲 |
@@ -14,8 +14,12 @@ Automated tests for SiliconV components.
 ## Running Tests
 
 ```bash
-# All tests
-cmake --build build --target test
+# Configure with tests enabled
+cmake -B build -DCMAKE_BUILD_TYPE=Debug -DSV_BUILD_TESTS=ON
+
+# Build and run all tests
+cmake --build build
+ctest --test-dir build --output-on-failure
 
 # Unit tests only
 ctest --test-dir build -L unit
@@ -28,10 +32,9 @@ ctest --test-dir build -L integration
 
 | Test | Type | Description |
 |------|------|-------------|
-| `test_gic_basic` | Unit | GICv3 register read/write |
-| `test_uart_output` | Unit | PL011 character output |
-| `test_virtio_negotiation` | Unit | Virtio feature negotiation |
-| `test_bootimg_parse` | Unit | Boot image v0-v4 parsing |
+| `test_dtb` | Unit | Generated FDT header and expected SiliconV nodes |
+| `test_uart` | Unit | PL011 TX callback and RX FIFO behavior |
+| `test_virtio_mmio` | Unit | Virtio-MMIO identity registers, avail ring layout, and interrupt ack |
 | `test_full_boot` | Integration | Kernel boots to shell |
 | `test_android_init` | Integration | Android init completes |
 | `test_gpu_render` | Integration | VirGL renders a frame |

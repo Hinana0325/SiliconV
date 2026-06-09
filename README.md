@@ -99,6 +99,15 @@ cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
+### Smoke test / dry run
+
+```bash
+# Validate image loading, DTB generation, and device setup without starting vCPUs
+./build/sv-cli --dry-run -k Image -r rootfs.img -m 1024 -n 2
+```
+
+This is useful on x86_64 developer machines and CI hosts where ARM64 KVM/HVF is unavailable.
+
 ### Build Android Kernel
 
 ```bash
@@ -114,7 +123,7 @@ cmake --build build
 ### Run on ARM64 Host
 
 ```bash
-./build/siliconv -k Image -r rootfs.img
+./build/sv-cli -k Image -r rootfs.img
 ```
 
 ## Development Status

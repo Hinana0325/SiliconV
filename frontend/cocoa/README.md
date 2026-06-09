@@ -27,7 +27,7 @@ Native macOS application for SiliconV using Cocoa (Objective-C).
 ```bash
 # Requires Xcode command line tools
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target siliconv-cocoa
+cmake --build build --target SiliconV
 ```
 
 ## Architecture

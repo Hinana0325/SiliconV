@@ -9,7 +9,7 @@ endif()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-option(SV_BUILD_TESTS "Build tests" OFF)
+option(SV_BUILD_TESTS "Build SiliconV unit tests" OFF)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0 -DSV_DEBUG")
@@ -98,6 +98,27 @@ if(SV_HAS_HVF)
     target_link_libraries(sv-cli sv_hv_hvf)
     target_link_libraries(sv-cli "-framework Hypervisor")
     target_compile_definitions(sv-cli PRIVATE SV_HAS_HVF=1)
+endif()
+
+# ── Tests ────────────────────────────────────────
+
+if(SV_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(test_dtb tests/unit/test_dtb.c)
+    target_link_libraries(test_dtb sv_dtb)
+    add_test(NAME test_dtb COMMAND test_dtb)
+    set_tests_properties(test_dtb PROPERTIES LABELS unit)
+
+    add_executable(test_uart tests/unit/test_uart.c)
+    target_link_libraries(test_uart sv_uart sv_gic)
+    add_test(NAME test_uart COMMAND test_uart)
+    set_tests_properties(test_uart PROPERTIES LABELS unit)
+
+    add_executable(test_virtio_mmio tests/unit/test_virtio_mmio.c)
+    target_link_libraries(test_virtio_mmio sv_virtio sv_gic)
+    add_test(NAME test_virtio_mmio COMMAND test_virtio_mmio)
+    set_tests_properties(test_virtio_mmio PROPERTIES LABELS unit)
 endif()
 
 # ── Boot Stub (ARM64 cross-compile) ───────────────

@@ -30,7 +30,7 @@ Frontend applications for controlling SiliconV. Multiple UI options for differen
 The primary interface. Launch SiliconV from the command line:
 
 ```bash
-./siliconv -k Image -r rootfs.img [--cpus 4] [--memory 4G]
+./build/sv-cli -k Image -r rootfs.img --cpus 4 --memory 4096
 ```
 
 ## Cocoa Frontend (macOS)

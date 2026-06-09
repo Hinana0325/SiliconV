@@ -118,6 +118,12 @@ int sv_machine_load_kernel(sv_machine_t *vm, const char *path)
 
         /* Copy kernel to guest RAM */
         uint64_t kernel_offset = 32 * 1024 * 1024;  /* 32MB offset */
+        if (kernel_offset + bootimg.kernel_size > vm->ram_size) {
+            fprintf(stderr, "sv: kernel too large (%u bytes) for guest RAM\n",
+                    bootimg.kernel_size);
+            sv_bootimg_free(&bootimg);
+            return -1;
+        }
         memcpy(vm->ram + kernel_offset, bootimg.kernel, bootimg.kernel_size);
         vm->kernel_entry = vm->ram_base + kernel_offset;
 
@@ -125,6 +131,12 @@ int sv_machine_load_kernel(sv_machine_t *vm, const char *path)
         if (bootimg.ramdisk && bootimg.ramdisk_size > 0) {
             uint64_t rd_offset = kernel_offset +
                 ((bootimg.kernel_size + 0x1FFFFF) & ~0x1FFFFF);  /* 2MB align */
+            if (rd_offset + bootimg.ramdisk_size > vm->ram_size) {
+                fprintf(stderr, "sv: ramdisk too large (%u bytes) for guest RAM\n",
+                        bootimg.ramdisk_size);
+                sv_bootimg_free(&bootimg);
+                return -1;
+            }
             memcpy(vm->ram + rd_offset, bootimg.ramdisk, bootimg.ramdisk_size);
             printf("sv: ramdisk at 0x%lx (%u bytes)\n",
                    (unsigned long)(vm->ram_base + rd_offset),
@@ -134,6 +146,12 @@ int sv_machine_load_kernel(sv_machine_t *vm, const char *path)
         /* Use embedded DTB if present */
         if (bootimg.dtb && bootimg.dtb_size > 0) {
             uint64_t dtb_off = 2 * 1024 * 1024;  /* 2MB offset */
+            if (dtb_off + bootimg.dtb_size > vm->ram_size) {
+                fprintf(stderr, "sv: embedded DTB too large (%u bytes) for guest RAM\n",
+                        bootimg.dtb_size);
+                sv_bootimg_free(&bootimg);
+                return -1;
+            }
             memcpy(vm->ram + dtb_off, bootimg.dtb, bootimg.dtb_size);
             vm->dtb_addr = vm->ram_base + dtb_off;
         }
@@ -158,13 +176,12 @@ int sv_machine_load_kernel(sv_machine_t *vm, const char *path)
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    if ((uint64_t)size > vm->ram_size - 64 * 1024 * 1024) {
-        fprintf(stderr, "sv: kernel too large (%ld bytes)\n", size);
+    uint64_t offset = 32 * 1024 * 1024;
+    if (size < 0 || offset + (uint64_t)size > vm->ram_size) {
+        fprintf(stderr, "sv: kernel too large (%ld bytes) for guest RAM\n", size);
         fclose(f);
         return -1;
     }
-
-    uint64_t offset = 32 * 1024 * 1024;
     size_t nread = fread(vm->ram + offset, 1, size, f);
     fclose(f);
 
@@ -195,6 +212,12 @@ int sv_machine_load_dtb(sv_machine_t *vm, const char *path)
     fseek(f, 0, SEEK_SET);
 
     uint64_t offset = 2 * 1024 * 1024;  /* 2MB */
+    if (size < 0 || offset + (uint64_t)size > vm->ram_size) {
+        fprintf(stderr, "sv: DTB too large (%ld bytes) for guest RAM\n", size);
+        fclose(f);
+        return -1;
+    }
+
     size_t nread = fread(vm->ram + offset, 1, size, f);
     fclose(f);
 
@@ -284,9 +307,10 @@ uint64_t sv_mmio_read(sv_machine_t *vm, uint64_t addr, int size)
 
     /* GIC Redistributor: 0x08010000 - 0x0801FFFF per CPU
      * Each CPU's redistributor is at 0x08010000 + cpu * 0x20000 */
-    if (addr >= 0x08010000 && addr < 0x08010000 + vm->num_cpus * 0x20000) {
-        int cpu = (addr - 0x08010000) / 0x20000;
-        uint64_t off = (addr - 0x08010000) % 0x20000;
+    uint64_t gicr_end = 0x08010000ULL + (uint64_t)vm->num_cpus * 0x20000ULL;
+    if (addr >= 0x08010000ULL && addr < gicr_end) {
+        int cpu = (int)((addr - 0x08010000ULL) / 0x20000ULL);
+        uint64_t off = (addr - 0x08010000ULL) % 0x20000ULL;
         return gicr_mmio_read(&vm->gic, cpu, off, size);
     }
 
@@ -327,9 +351,10 @@ void sv_mmio_write(sv_machine_t *vm, uint64_t addr, uint64_t value, int size)
     }
 
     /* GIC Redistributor — per-CPU */
-    if (addr >= 0x08010000 && addr < 0x08010000 + vm->num_cpus * 0x20000) {
-        int cpu = (addr - 0x08010000) / 0x20000;
-        uint64_t off = (addr - 0x08010000) % 0x20000;
+    uint64_t gicr_end = 0x08010000ULL + (uint64_t)vm->num_cpus * 0x20000ULL;
+    if (addr >= 0x08010000ULL && addr < gicr_end) {
+        int cpu = (int)((addr - 0x08010000ULL) / 0x20000ULL);
+        uint64_t off = (addr - 0x08010000ULL) % 0x20000ULL;
         gicr_mmio_write(&vm->gic, cpu, off, value, size);
         return;
     }

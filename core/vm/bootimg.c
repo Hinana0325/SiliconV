@@ -16,19 +16,6 @@ static uint32_t align_up(uint32_t val, uint32_t page_size)
     return (val + page_size - 1) & ~(page_size - 1);
 }
 
-/* Get header size for a given version */
-static uint32_t header_size_for_version(int version)
-{
-    switch (version) {
-    case 0: return sizeof(boot_img_hdr_v0);
-    case 1: return sizeof(boot_img_hdr_v1);
-    case 2: return sizeof(boot_img_hdr_v2);
-    case 3: return sizeof(boot_img_hdr_v3);
-    case 4: return sizeof(boot_img_hdr_v4);
-    default: return 0;
-    }
-}
-
 int sv_bootimg_parse(sv_bootimg_t *img, uint8_t *data, size_t size)
 {
     if (!img || !data || size < 256)
