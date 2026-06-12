@@ -279,7 +279,7 @@ void MainWindow::browseRootfs() {
 void MainWindow::showSettings() {
     SettingsDialog dlg(m_config, this);
     if (dlg.exec() == QDialog::Accepted) {
-        m_config = dlg.result();
+        m_config = dlg.config();
         m_statusLabel->setText(QString("Config: %1 CPUs, %2 MB RAM")
             .arg(m_config.numCPUs).arg(m_config.ramMB));
     }
@@ -493,8 +493,8 @@ QString MainWindow::formatSize(qint64 bytes) const {
 
 /* ── Settings Dialog ────────────────────────────── */
 
-SettingsDialog::SettingsDialog(const VMManager::Config &config, QWidget *parent)
-    : QDialog(parent), m_result(config) {
+SettingsDialog::SettingsDialog(VMManager::Config &config, QWidget *parent)
+    : QDialog(parent), m_config(config) {
     setWindowTitle("VM Configuration");
     setMinimumWidth(420);
 
@@ -547,10 +547,10 @@ SettingsDialog::SettingsDialog(const VMManager::Config &config, QWidget *parent)
     layout->addWidget(buttons);
 
     QObject::connect(buttons, &QDialogButtonBox::accepted, this, [&, cpuSpin, ramSlider, cmdEdit, dryCheck] {
-        m_result.numCPUs = cpuSpin->value();
-        m_result.ramMB   = ramSlider->value();
-        m_result.cmdline = cmdEdit->text();
-        m_result.dryRun  = dryCheck->isChecked();
+        m_config.numCPUs = cpuSpin->value();
+        m_config.ramMB   = ramSlider->value();
+        m_config.cmdline = cmdEdit->text();
+        m_config.dryRun  = dryCheck->isChecked();
         accept();
     });
     QObject::connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);

@@ -14,8 +14,12 @@
 #include <QToolBar>
 #include <QLabel>
 #include <QDialog>
+#include <QLineEdit>
+#include <QSpinBox>
+#include <QCheckBox>
+#include <QSlider>
 
-class VMManager;
+#include "VMManager.h"
 class VMDisplayWidget;
 class ConsoleWidget;
 
@@ -69,11 +73,11 @@ private:
 class SettingsDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit SettingsDialog(const VMManager::Config &config, QWidget *parent = nullptr);
-    VMManager::Config result() const { return m_result; }
+    explicit SettingsDialog(VMManager::Config &config, QWidget *parent = nullptr);
+    VMManager::Config config() const { return m_config; }
 
 private:
-    VMManager::Config m_result;
+    VMManager::Config &m_config;
 };
 
 #endif // SILICONV_MAINWINDOW_H

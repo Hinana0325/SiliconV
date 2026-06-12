@@ -3,6 +3,7 @@
  */
 
 #include "ConsoleWidget.h"
+#include <QVBoxLayout>
 #include <QScrollBar>
 #include <QFont>
 #include <QDateTime>
