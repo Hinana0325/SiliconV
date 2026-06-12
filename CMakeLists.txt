@@ -199,7 +199,7 @@ if(APPLE)
     message(STATUS "  Cocoa: SiliconV.app bundle enabled")
 endif()
 
-# ── Linux Qt6 GUI ──────────────────────────────────
+# ── Cross-Platform Qt6 GUI (Linux + Windows) ──────
 
 if(SV_BUILD_QT)
     enable_language(CXX)
@@ -233,12 +233,27 @@ if(SV_BUILD_QT)
         sv_uart sv_virtio sv_virtio_blk sv_virtio_net sv_virtio_console sv_hv
     )
 
+    # Win32: mark as GUI app (no console window)
+    if(WIN32)
+        set_target_properties(siliconv-qt PROPERTIES
+            WIN32_EXECUTABLE TRUE
+            OUTPUT_NAME "SiliconV"
+        )
+        message(STATUS "  Qt: Windows GUI mode (siliconv-qt.exe → SiliconV.exe)")
+    endif()
+
+    # KVM backend (Linux ARM64)
     if(SV_HAS_KVM)
         target_link_libraries(siliconv-qt PRIVATE sv_hv_kvm)
         target_compile_definitions(siliconv-qt PRIVATE SV_HAS_KVM=1)
     endif()
 
-    message(STATUS "  Qt: siliconv-qt target enabled")
+    # WHPX backend (Windows x64) — future, when hypervisor/whpx/ is implemented
+    if(WIN32)
+        message(STATUS "  Qt: WHPX backend not yet implemented (use --dry-run for demo)")
+    endif()
+
+    message(STATUS "  Qt: siliconv-qt target enabled (${CMAKE_SYSTEM_NAME})")
 endif()
 
 # ── Summary ───────────────────────────────────────
@@ -247,5 +262,5 @@ message(STATUS "")
 message(STATUS "SiliconV: ${CMAKE_SYSTEM_PROCESSOR} / ${CMAKE_BUILD_TYPE}")
 message(STATUS "  KVM: ${SV_HAS_KVM}")
 message(STATUS "  Cocoa: ${SV_HAS_COCOA}")
-message(STATUS "  Qt: ${SV_BUILD_QT}")
+message(STATUS "  Qt: ${SV_BUILD_QT} (${CMAKE_SYSTEM_NAME})")
 message(STATUS "")
