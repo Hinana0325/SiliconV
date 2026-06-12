@@ -22,6 +22,43 @@
 #include <stdio.h>
 #include <errno.h>
 
+/* Ensure _IOR/_IOW macros are available for fallback definitions below */
+#ifndef _IOR
+#include <linux/ioctl.h>
+#endif
+
+/* ── ARM64 KVM constants (may be missing in cross-compile headers) ── */
+#ifndef KVM_DEV_ARM_VGIC_GRP_ADDR
+#define KVM_DEV_ARM_VGIC_GRP_ADDR   0
+#endif
+#ifndef KVM_DEV_ARM_VGIC_GRP_CTRL
+#define KVM_DEV_ARM_VGIC_GRP_CTRL   2
+#endif
+#ifndef KVM_VGIC_V3_ADDR_TYPE_DIST
+#define KVM_VGIC_V3_ADDR_TYPE_DIST  0
+#endif
+#ifndef KVM_VGIC_V3_ADDR_TYPE_REDIST
+#define KVM_VGIC_V3_ADDR_TYPE_REDIST 1
+#endif
+#ifndef KVM_VGIC_CTRL_INIT
+#define KVM_VGIC_CTRL_INIT          0
+#endif
+
+/* struct kvm_vcpu_init is ARM64-specific — may not exist in cross-compile headers */
+#ifndef __KVM_HAVE_VCPU_INIT
+struct kvm_vcpu_init {
+    __u32 target;
+    __u32 features[7];
+};
+#endif
+
+#ifndef KVM_ARM_PREFERRED_TARGET
+#define KVM_ARM_PREFERRED_TARGET    _IOR(KVMIO, 0xaf, struct kvm_vcpu_init)
+#endif
+#ifndef KVM_ARM_VCPU_INIT
+#define KVM_ARM_VCPU_INIT           _IOW(KVMIO, 0xae, struct kvm_vcpu_init)
+#endif
+
 /* ── ARM64 KVM Register Encoding ───────────────── */
 /* KVM_REG_ARM_CORE_REG expects struct kvm_regs field names.
  * struct kvm_regs { struct user_pt_regs regs; __u64 sp_el1; __u64 elr_el1; ... }
@@ -293,7 +330,7 @@ static sv_vcpu_t* kvm_vcpu_create(sv_vm_t *vm, int id)
     /* Enable vCPU timer */
     struct kvm_vcpu_init init = {0};
     /* Request PSCI-based CPU features */
-    ioctl(vcpu->fd, KVM_GET_PREFERRED_TARGET, &init);
+    ioctl(vcpu->fd, KVM_ARM_PREFERRED_TARGET, &init);
     ioctl(vcpu->fd, KVM_ARM_VCPU_INIT, &init);
 
     printf("sv: vCPU %d created\n", id);
