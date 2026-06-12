@@ -1,0 +1,25 @@
+# SiliconV — Vendor SELinux File Contexts
+#
+# Labels for files on the vendor partition.
+# Used by restorecon during init to set correct SELinux labels.
+#
+# In permissive mode (Phase 4), these labels are informational.
+# They will be enforced when switching to enforcing mode (Phase 8+).
+
+# ── Init Configuration ───────────────────────────────
+/vendor/etc/fstab\.siliconv         u:object_r:vendor_configs_file:s0
+/vendor/etc/init/init\.siliconv\.rc  u:object_r:vendor_config_file:s0
+/vendor/etc/init/init\.siliconv\.sh  u:object_r:vendor_config_file:s0
+
+# ── SELinux Policy ─────────────────────────────────
+/vendor/etc/selinux/file_contexts    u:object_r:vendor_configs_file:s0
+/vendor/etc/selinux/siliconv\.te     u:object_r:vendor_configs_file:s0
+
+# ── Build Properties ────────────────────────────────
+/vendor/build\.prop                  u:object_r:vendor_configs_file:s0
+/vendor/default\.prop                u:object_r:vendor_configs_file:s0
+
+# ── HAL Libraries (future) ─────────────────────────
+/vendor/lib64/hw/gralloc\.siliconv\.so   u:object_r:vendor_hal_file:s0
+/vendor/lib64/hw/hwcomposer\.siliconv\.so u:object_r:vendor_hal_file:s0
+/vendor/lib64/hw/audio\.siliconv\.so      u:object_r:vendor_hal_file:s0

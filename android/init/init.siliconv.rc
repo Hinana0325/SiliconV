@@ -1,52 +1,13 @@
 # Android init configuration for SiliconV Virtual Machine
-# This file defines services and actions specific to SiliconV hardware.
-
-# ── Hardware-specific properties ──────────────────
+# GSI supplemental init — placed in /vendor/etc/init/ for AOSP auto-scanning.
+# Does NOT define servicemanager, logd, or zygote (those come from GSI init.rc).
 
 on early-init
-    # Set hardware properties
+    # AOSP init uses ro.hardware to locate fstab.<ro.hardware>
     setprop ro.hardware siliconv
-    setprop ro.hardware.chipname virtual
-    setprop ro.product.model "SiliconV VM"
-    setprop ro.product.device siliconv
-    setprop ro.product.manufacturer "SiliconV"
-    setprop ro.boot.hardware siliconv
-
-    # Display
-    setprop ro.sf.lcd_density 320
-    setprop persist.sys.language en
-    setprop persist.sys.country US
-
-    # Disable hardware features not available in VM
-    setprop ro.hardware.bluetooth false
-    setprop ro.hardware.wifi false
-    setprop ro.hardware.camera false
-    setprop ro.hardware.gps false
-    setprop ro.hardware.nfc false
-
-    # Audio stub
-    setprop ro.hardware.audio primary
 
 on init
-    # Create SiliconV-specific device nodes
-    mkdir /dev/siliconv 0755 root root
-
-    # Mount debugfs for virtio devices
-    mount debugfs debugfs /sys/kernel/debug
-
-on post-fs
-    # Create data directories
-    mkdir /data/misc/wifi 0770 wifi wifi
-    mkdir /data/misc/bluetooth 0770 bluetooth bluetooth
-    mkdir /data/misc/keystore 0700 keystore keystore
-    mkdir /data/misc/vold 0700 root root
-
-on boot
-    # Network configuration
-    setprop net.eth0.dns1 8.8.8.8
-    setprop net.eth0.dns2 8.8.4.4
-
-    # Binder
+    # Binder device permissions
     chmod 0666 /dev/binder
     chmod 0666 /dev/hwbinder
     chmod 0666 /dev/vndbinder
@@ -54,27 +15,40 @@ on boot
     # Ashmem
     chmod 0666 /dev/ashmem
 
-    # Input
-    chmod 0660 /dev/input/*
+    # Device-mapper (required for dynamic partitions / snapshot)
+    chmod 0660 /dev/device-mapper
+    chown system system /dev/device-mapper
 
-    # Graphics
-    chmod 0666 /dev/graphics/*
-    chmod 0666 /dev/fb0
+    # DMA-BUF heaps
+    chmod 0666 /dev/dma_heap/system
+
+    # Create SiliconV-specific directories
+    mkdir /dev/siliconv 0755 root root
+
+    # Mount debugfs for virtio diagnostics
+    mount debugfs debugfs /sys/kernel/debug
+
+on boot
+    # Network DNS configuration (virtio-net with user-mode networking)
+    setprop net.eth0.dns1 8.8.8.8
+    setprop net.eth0.dns2 8.8.4.4
+
+    # Disable hardware features not present in VM
+    setprop ro.hardware.bluetooth false
+    setprop ro.hardware.wifi false
+    setprop ro.hardware.camera false
+    setprop ro.hardware.gps false
+    setprop ro.hardware.nfc false
 
 # ── Services ──────────────────────────────────────
 
-# SiliconV hardware init service
-service siliconv-init /system/bin/sh /vendor/etc/init/siliconv.sh
+# SiliconV hardware verification script
+service siliconv-hw /system/bin/sh /vendor/etc/init/init.siliconv.sh
     class core
     user root
     group root
     oneshot
     disabled
 
-# Virtio console service (for host communication)
-service siliconv-console /system/bin/sh -c "cat /dev/hvc0"
-    class late_start
-    user shell
-    group shell
-    disabled
-    stdio_to_init
+on property:sys.boot_completed=1
+    start siliconv-hw

@@ -1,20 +1,26 @@
 # Android fstab for SiliconV Virtual Machine
-# Mount points for AOSP GSI boot
+# AOSP GSI System-as-Root boot configuration
+#
+# Format: <src>  <mnt_point>  <type>  <mnt_flags>  <fs_mgr_flags>
+#
+# QEMU drive order -> /dev/vd* mapping:
+#   -drive file=system.img  -> /dev/vda  (system partition, ro)
+#   -drive file=vendor.img  -> /dev/vdb  (vendor partition, ro)
+#   -drive file=userdata.img -> /dev/vdc (data partition, rw)
+#   -drive file=cache.img   -> /dev/vdd  (cache partition, rw)
+#   -drive file=metadata.img -> /dev/vde (metadata partition, rw)
 
-# System partition (read-only)
+# System partition (read-only, first stage mount for System-as-Root)
 /dev/vda    /system      ext4    ro,barrier=1    wait,first_stage_mount
 
-# Vendor partition (read-only, if present)
-/dev/vdb    /vendor      ext4    ro,barrier=1    wait
+# Vendor partition (read-only, first stage mount for HAL loading)
+/dev/vdb    /vendor      ext4    ro,barrier=1    wait,first_stage_mount
 
-# Data partition (read-write)
-/dev/vdc    /data        ext4    noatime,nosuid,nodev,barrier=1,noauto_da_alloc    wait,check
+# Data partition (read-write, software encryption for FDE/FBE)
+/dev/vdc    /data        ext4    noatime,nosuid,nodev,barrier=1,noauto_da_alloc    wait,check,fileencryption=software
 
 # Cache partition
 /dev/vdd    /cache       ext4    noatime,nosuid,nodev,barrier=1,noauto_da_alloc    wait,check
 
-# Metadata partition (for encryption)
+# Metadata partition (for file-based encryption metadata)
 /dev/vde    /metadata    ext4    nodev,noatime,nosuid,errors=panic    wait,formattable
-
-# SD card (emulated)
-tmpfs    /mnt/sdcard    tmpfs    ro,mode=0755,uid=1000,gid=1015    wait
