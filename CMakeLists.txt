@@ -224,6 +224,12 @@ if(SV_BUILD_QT)
         frontend/qt/VMManager.cpp
     )
 
+    set_target_properties(siliconv-qt PROPERTIES
+        AUTOMOC ON
+        AUTORCC ON
+        AUTOUIC ON
+    )
+
     target_include_directories(siliconv-qt PRIVATE
         core/vm core/irq core/memory core/object
         devices/uart devices/transport devices/virtio-blk
