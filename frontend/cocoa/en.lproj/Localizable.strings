@@ -1,19 +1,37 @@
 /* Toolbar */
 "toolbar.start" = "Start";
 "toolbar.stop" = "Stop";
+"toolbar.pause" = "Pause";
+"toolbar.kernel" = "Kernel";
+"toolbar.rootfs" = "Rootfs";
+"toolbar.settings" = "Settings";
 "toolbar.clear" = "Clear";
-"toolbar.kernel" = "Kernel…";
-"toolbar.rootfs" = "Rootfs…";
-"toolbar.configure" = "Configure";
 
 /* Status bar */
 "status.ready" = "Ready";
 "status.starting" = "Starting VM…";
-"status.running.demo" = "Running (demo mode — x86_64)";
+"status.running" = "🟢 VM Running | CPUs: %d | RAM: %d MB";
+"status.paused" = "⏸ VM Paused";
+"status.stopping" = "Stopping VM…";
+"status.error" = "✗ VM Error — check console";
+"status.running.demo" = "Running (demo mode)";
 
-/* Placeholders */
-"field.kernel.placeholder" = "Kernel (drag or browse)…";
-"field.rootfs.placeholder" = "Root filesystem (optional)…";
+/* Console tabs */
+"console.tab.kernel" = "Kernel";
+"console.tab.android" = "Android";
+"console.tab.logcat" = "Logcat";
+
+/* Device sidebar */
+"sidebar.header" = "DEVICES";
+"device.uart" = "UART (PL011)";
+"device.gic" = "GICv3";
+"device.virtio" = "Virtio Devices";
+"device.virtio.blk" = "virtio-blk";
+"device.virtio.net" = "virtio-net";
+"device.virtio.gpu" = "virtio-gpu";
+"device.virtio.console" = "virtio-console";
+"device.psci" = "PSCI";
+"device.dtb" = "DTB Generator";
 
 /* Menu */
 "menu.apple" = "SiliconV";
@@ -22,29 +40,44 @@
 "menu.file" = "File";
 "menu.open.kernel" = "Open Kernel…";
 "menu.open.rootfs" = "Open Rootfs…";
+"menu.clear.console" = "Clear Console";
 "menu.vm" = "VM";
 "menu.start" = "Start";
 "menu.stop" = "Stop";
+"menu.pause" = "Pause / Resume";
 "menu.window" = "Window";
 "menu.minimize" = "Minimize";
 
 /* Alerts */
 "alert.no.kernel.title" = "No Kernel";
 "alert.no.kernel.message" = "Please select a kernel image first.";
+"alert.already.running" = "VM is already running.";
+"alert.title" = "SiliconV";
 
-/* Config panel */
-"config.cpus" = "CPUs:";
-"config.ram" = "RAM:";
-"config.cmdline" = "Cmdline:";
-"config.apply" = "Apply";
-"config.status" = "Config: %d CPUs, %d MB RAM";
+/* Settings panel */
+"settings.title" = "VM Configuration";
+"settings.cpus" = "vCPUs:";
+"settings.ram" = "RAM (MB):";
+"settings.cmdline" = "Kernel Cmdline:";
+"settings.dryrun" = "Dry Run (validate without running vCPU)";
+"settings.apply" = "Apply";
+"settings.cancel" = "Cancel";
+
+/* VM Display */
+"display.brand" = "SILICON V";
+"display.subtitle" = "Virtual Phone Hardware Platform";
+"display.running" = "VM Running";
 
 /* About */
 "about.title" = "SiliconV";
-"about.version" = "Version %@ (build %@)";
-"about.credits" = "SiliconV — Virtual Phone Hardware Platform\n\nARM64 virtual machine for Android/Linux\nSVABI v0 | GICv3 | PL011 UART | Virtio";
+"about.version" = "Virtual Phone Hardware Platform\nVersion 0.1";
+"about.credits" = "A hypervisor platform for running AOSP Android in a virtual machine.\nSupports KVM (Linux) and HVF (macOS).";
 
-/* Console headers */
+/* File panel titles */
+"panel.kernel.title" = "Select Kernel Image";
+"panel.rootfs.title" = "Select Root Filesystem";
+
+/* Console log messages */
 "console.header" = "SiliconV v0.1";
 "console.cpus" = "  CPUs: %d\n";
 "console.ram" = "  RAM:  %d MB\n";

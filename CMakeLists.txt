@@ -151,8 +151,16 @@ if(APPLE)
     add_executable(SiliconV
         MACOSX_BUNDLE
         frontend/cocoa/main.m
-        frontend/cocoa/AppDelegate.m
         frontend/cocoa/AppDelegate.h
+        frontend/cocoa/AppDelegate.m
+        frontend/cocoa/MainWindowController.h
+        frontend/cocoa/MainWindowController.m
+        frontend/cocoa/VMViewController.h
+        frontend/cocoa/VMViewController.m
+        frontend/cocoa/ConsoleViewController.h
+        frontend/cocoa/ConsoleViewController.m
+        frontend/cocoa/VMEngine.h
+        frontend/cocoa/VMEngine.m
     )
 
     set_target_properties(SiliconV PROPERTIES
@@ -166,7 +174,7 @@ if(APPLE)
 
     target_link_libraries(SiliconV
         sv_machine sv_bootimg sv_gic sv_psci sv_dtb
-        sv_uart sv_virtio sv_virtio_blk sv_hv
+        sv_uart sv_virtio sv_virtio_blk sv_virtio_net sv_virtio_console sv_hv
         "-framework AppKit"
         "-framework Foundation"
     )
