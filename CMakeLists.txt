@@ -146,6 +146,7 @@ endif()
 
 if(APPLE)
     set(SILICONV_SDK "macosx")
+    set(SV_HAS_COCOA TRUE)
 
     add_executable(SiliconV
         MACOSX_BUNDLE

@@ -39,7 +39,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: siliconv-x86_64
-          path: build/siliconv
+          path: build/sv-cli
 
   # ── Cross-compile ARM64 Boot Stub ───────────────
   build-boot-stub:
@@ -57,6 +57,7 @@ jobs:
 
       - name: Build boot stub
         run: |
+          mkdir -p build
           aarch64-linux-gnu-as -o build/boot_stub.o core/vm/boot_stub.S
           aarch64-linux-gnu-ld -T core/vm/boot_stub.ld -o build/boot_stub.elf build/boot_stub.o
           aarch64-linux-gnu-objcopy -O binary build/boot_stub.elf build/boot_stub.bin
@@ -87,19 +88,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             cmake gcc g++ \
-            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
+            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+            -DCMAKE_ASM_COMPILER=aarch64-linux-gnu-as
 
       - name: Build
         run: cmake --build build --parallel $(nproc)
 
       - name: Verify artifacts
         run: |
-          ls -la build/siliconv
+          ls -la build/sv-cli
           ls -la build/boot_stub.bin 2>/dev/null || echo "boot_stub.bin not built (cross-compiler may be missing)"
-          file build/siliconv
+          file build/sv-cli
 
   # ── Spec Validation ────────────────────────────
   validate-spec:
