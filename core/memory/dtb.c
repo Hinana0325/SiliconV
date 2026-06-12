@@ -169,7 +169,8 @@ static void w_prop_str(dtb_writer_t *w, const char *name, const char *val)
 static void w_prop_u32list(dtb_writer_t *w, const char *name,
                            const uint32_t *vals, int count)
 {
-    uint8_t data[count * 4];
+    uint8_t *data = malloc(count * 4);
+    if (!data) return;
     for (int i = 0; i < count; i++) {
         uint32_t v = vals[i];
         data[i*4+0] = (v >> 24) & 0xFF;
@@ -178,6 +179,7 @@ static void w_prop_u32list(dtb_writer_t *w, const char *name,
         data[i*4+3] = v & 0xFF;
     }
     w_prop(w, name, data, count * 4);
+    free(data);
 }
 
 /* Write empty property (just presence) */

@@ -12,7 +12,7 @@
 #ifdef __aarch64__
 
 #include <linux/kvm.h>
-#include <linux/kvm_host.h>
+#include <asm/kvm.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -23,14 +23,31 @@
 #include <errno.h>
 
 /* ── ARM64 KVM Register Encoding ───────────────── */
-#define KVM_REG_ARM64_CORE_REG(n) \
-    (KVM_REG_ARM64 | KVM_REG_SIZE_U64 | KVM_REG_ARM64_CORE | (n))
+/* KVM_REG_ARM_CORE_REG expects struct kvm_regs field names.
+ * struct kvm_regs { struct user_pt_regs regs; __u64 sp_el1; __u64 elr_el1; ... }
+ * struct user_pt_regs { __u64 regs[31]; __u64 sp; __u64 pc; __u64 pstate; } */
 
-/* Core register offsets (from asm/kvm.h) */
-#define KVM_ARM64_REG_X0    0
-#define KVM_ARM64_REG_SP    31
-#define KVM_ARM64_REG_PC    32
-#define KVM_ARM64_REG_PSTATE 33
+static uint64_t kvm_encode_reg(uint64_t reg)
+{
+    if (reg <= 30) {
+        /* x0-x30 → kvm_regs.regs.regs[reg] */
+        return KVM_REG_ARM64 | KVM_REG_SIZE_U64 | KVM_REG_ARM_CORE |
+               (offsetof(struct kvm_regs, regs.regs[reg]) / sizeof(uint32_t));
+    } else if (reg == 31) {
+        /* SP → kvm_regs.sp_el1 */
+        return KVM_REG_ARM64 | KVM_REG_SIZE_U64 | KVM_REG_ARM_CORE |
+               (offsetof(struct kvm_regs, sp_el1) / sizeof(uint32_t));
+    } else if (reg == 32) {
+        /* PC → kvm_regs.regs.pc */
+        return KVM_REG_ARM64 | KVM_REG_SIZE_U64 | KVM_REG_ARM_CORE |
+               (offsetof(struct kvm_regs, regs.pc) / sizeof(uint32_t));
+    } else if (reg == 33) {
+        /* PSTATE → kvm_regs.regs.pstate */
+        return KVM_REG_ARM64 | KVM_REG_SIZE_U64 | KVM_REG_ARM_CORE |
+               (offsetof(struct kvm_regs, regs.pstate) / sizeof(uint32_t));
+    }
+    return 0; /* invalid */
+}
 
 /* Internal VM structure */
 struct sv_vm {
@@ -366,22 +383,8 @@ static int kvm_vcpu_run(sv_vcpu_t *vcpu, sv_vcpu_exit_t *exit)
 
 static int kvm_vcpu_get_reg(sv_vcpu_t *vcpu, uint64_t reg, uint64_t *val)
 {
-    uint64_t kvm_reg;
-
-    /* Map our register numbering to KVM register IDs */
-    if (reg <= 30) {
-        /* x0-x30 */
-        kvm_reg = KVM_REG_ARM64_CORE_REG(reg);
-    } else if (reg == 31) {
-        /* SP */
-        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_SP);
-    } else if (reg == 32) {
-        /* PC */
-        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_PC);
-    } else if (reg == 33) {
-        /* PSTATE/CPSR */
-        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_PSTATE);
-    } else {
+    uint64_t kvm_reg = kvm_encode_reg(reg);
+    if (!kvm_reg) {
         fprintf(stderr, "sv: unsupported register %lu\n", (unsigned long)reg);
         return -1;
     }
@@ -402,17 +405,8 @@ static int kvm_vcpu_get_reg(sv_vcpu_t *vcpu, uint64_t reg, uint64_t *val)
 
 static int kvm_vcpu_set_reg(sv_vcpu_t *vcpu, uint64_t reg, uint64_t val)
 {
-    uint64_t kvm_reg;
-
-    if (reg <= 30) {
-        kvm_reg = KVM_REG_ARM64_CORE_REG(reg);
-    } else if (reg == 31) {
-        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_SP);
-    } else if (reg == 32) {
-        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_PC);
-    } else if (reg == 33) {
-        kvm_reg = KVM_REG_ARM64_CORE_REG(KVM_ARM64_REG_PSTATE);
-    } else {
+    uint64_t kvm_reg = kvm_encode_reg(reg);
+    if (!kvm_reg) {
         fprintf(stderr, "sv: unsupported register %lu\n", (unsigned long)reg);
         return -1;
     }

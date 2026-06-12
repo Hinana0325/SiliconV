@@ -63,6 +63,7 @@ typedef enum {
 /* vCPU exit info */
 typedef struct {
     sv_exit_type_t type;
+    int            vcpu_id;
     uint64_t       mmio_addr;
     uint64_t       mmio_data;
     int            mmio_size;

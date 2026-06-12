@@ -452,7 +452,7 @@ static int hvf_vcpu_run(sv_vcpu_t *svc, sv_vcpu_exit_t *exit)
 /* ── vcpu_get_reg ───────────────────────────────── */
 static int hvf_vcpu_get_reg(sv_vcpu_t *svc, uint64_t reg, uint64_t *val)
 {
-    if (reg <= 31) {
+    if (reg <= 30) {
         hv_reg_t hvf_reg = HV_REG_X0 + (hv_reg_t)reg;
         return hv_vcpu_get_reg(svc->id, hvf_reg, val) == HV_SUCCESS ? 0 : -1;
     }
