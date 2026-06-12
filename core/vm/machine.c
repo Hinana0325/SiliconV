@@ -11,6 +11,7 @@
 
 #include "machine.h"
 #include "bootimg.h"
+#include "../memory/mmio_addrs.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -269,7 +270,7 @@ int sv_machine_attach_virtio_blk(sv_machine_t *vm, const char *image_path,
                               vm->ram, vm->ram_base, vm->ram_size);
     if (ret == 0) {
         vm->virtio_blk_enabled = true;
-        vm->dtb_config.virtio[0].base = 0x20000000;
+        vm->dtb_config.virtio[0].base = SV_ADDR_VIRTIO_BLK;
         vm->dtb_config.virtio[0].irq = 40;
         vm->dtb_config.virtio[0].device_id = 2;
         /* Wire GIC for interrupt delivery */
@@ -306,41 +307,43 @@ int sv_machine_attach_virtio_net(sv_machine_t *vm)
 
 uint64_t sv_mmio_read(sv_machine_t *vm, uint64_t addr, int size)
 {
-    /* GIC Distributor: 0x08000000 - 0x0800FFFF */
-    if (addr >= 0x08000000 && addr < 0x08010000) {
-        return gicd_mmio_read(&vm->gic, addr - 0x08000000, size);
+    /* GIC Distributor */
+    if (addr >= SV_ADDR_GICD_BASE && addr < SV_ADDR_GICD_END) {
+        return gicd_mmio_read(&vm->gic, addr - SV_ADDR_GICD_BASE, size);
     }
 
-    /* GIC Redistributor: 0x08010000 - 0x0801FFFF per CPU
-     * Each CPU's redistributor is at 0x08010000 + cpu * 0x20000 */
-    uint64_t gicr_end = 0x08010000ULL + (uint64_t)vm->num_cpus * 0x20000ULL;
-    if (addr >= 0x08010000ULL && addr < gicr_end) {
-        int cpu = (int)((addr - 0x08010000ULL) / 0x20000ULL);
-        uint64_t off = (addr - 0x08010000ULL) % 0x20000ULL;
+    /* GIC Redistributor — per-CPU */
+    uint64_t gicr_end = SV_ADDR_GICR_BASE + (uint64_t)vm->num_cpus * SV_ADDR_GICR_STRIDE;
+    if (addr >= SV_ADDR_GICR_BASE && addr < gicr_end) {
+        int cpu = (int)((addr - SV_ADDR_GICR_BASE) / SV_ADDR_GICR_STRIDE);
+        uint64_t off = (addr - SV_ADDR_GICR_BASE) % SV_ADDR_GICR_STRIDE;
         return gicr_mmio_read(&vm->gic, cpu, off, size);
     }
 
-    /* UART0: 0x10000000 - 0x1000FFFF */
-    if (addr >= 0x10000000 && addr < 0x10010000) {
-        return pl011_mmio_read(&vm->uart, addr - 0x10000000, size);
+    /* UART0 */
+    if (addr >= SV_ADDR_UART0_BASE && addr < SV_ADDR_UART0_END) {
+        return pl011_mmio_read(&vm->uart, addr - SV_ADDR_UART0_BASE, size);
     }
 
-    /* Virtio-BLK: 0x20000000 - 0x2000FFFF */
-    if (addr >= 0x20000000 && addr < 0x20010000 && vm->virtio_blk_enabled) {
+    /* Virtio-BLK */
+    if (addr >= SV_ADDR_VIRTIO_BLK && addr < SV_ADDR_VIRTIO_BLK + SV_ADDR_VIRTIO_SIZE
+        && vm->virtio_blk_enabled) {
         return virtio_mmio_read(&vm->virtio_blk.vdev,
-                                addr - 0x20000000, size);
+                                addr - SV_ADDR_VIRTIO_BLK, size);
     }
 
-    /* Virtio-CONSOLE: 0x20040000 - 0x2004FFFF */
-    if (addr >= 0x20040000 && addr < 0x20050000 && vm->virtio_console_enabled) {
+    /* Virtio-CONSOLE */
+    if (addr >= SV_ADDR_VIRTIO_CONSOLE && addr < SV_ADDR_VIRTIO_CONSOLE + SV_ADDR_VIRTIO_SIZE
+        && vm->virtio_console_enabled) {
         return virtio_mmio_read(&vm->virtio_console.vdev,
-                                addr - 0x20040000, size);
+                                addr - SV_ADDR_VIRTIO_CONSOLE, size);
     }
 
-    /* Virtio-NET: 0x20010000 - 0x2001FFFF */
-    if (addr >= 0x20010000 && addr < 0x20020000 && vm->virtio_net_enabled) {
+    /* Virtio-NET */
+    if (addr >= SV_ADDR_VIRTIO_NET && addr < SV_ADDR_VIRTIO_NET + SV_ADDR_VIRTIO_SIZE
+        && vm->virtio_net_enabled) {
         return virtio_mmio_read(&vm->virtio_net.vdev,
-                                addr - 0x20010000, size);
+                                addr - SV_ADDR_VIRTIO_NET, size);
     }
 
     fprintf(stderr, "sv: unmapped MMIO read at 0x%lx (size=%d)\n",
@@ -351,44 +354,47 @@ uint64_t sv_mmio_read(sv_machine_t *vm, uint64_t addr, int size)
 void sv_mmio_write(sv_machine_t *vm, uint64_t addr, uint64_t value, int size)
 {
     /* GIC Distributor */
-    if (addr >= 0x08000000 && addr < 0x08010000) {
-        gicd_mmio_write(&vm->gic, addr - 0x08000000, value, size);
+    if (addr >= SV_ADDR_GICD_BASE && addr < SV_ADDR_GICD_END) {
+        gicd_mmio_write(&vm->gic, addr - SV_ADDR_GICD_BASE, value, size);
         return;
     }
 
-    /* GIC Redistributor — per-CPU */
-    uint64_t gicr_end = 0x08010000ULL + (uint64_t)vm->num_cpus * 0x20000ULL;
-    if (addr >= 0x08010000ULL && addr < gicr_end) {
-        int cpu = (int)((addr - 0x08010000ULL) / 0x20000ULL);
-        uint64_t off = (addr - 0x08010000ULL) % 0x20000ULL;
+    /* GIC Redistributor */
+    uint64_t gicr_end = SV_ADDR_GICR_BASE + (uint64_t)vm->num_cpus * SV_ADDR_GICR_STRIDE;
+    if (addr >= SV_ADDR_GICR_BASE && addr < gicr_end) {
+        int cpu = (int)((addr - SV_ADDR_GICR_BASE) / SV_ADDR_GICR_STRIDE);
+        uint64_t off = (addr - SV_ADDR_GICR_BASE) % SV_ADDR_GICR_STRIDE;
         gicr_mmio_write(&vm->gic, cpu, off, value, size);
         return;
     }
 
     /* UART0 */
-    if (addr >= 0x10000000 && addr < 0x10010000) {
-        pl011_mmio_write(&vm->uart, addr - 0x10000000, value, size);
+    if (addr >= SV_ADDR_UART0_BASE && addr < SV_ADDR_UART0_END) {
+        pl011_mmio_write(&vm->uart, addr - SV_ADDR_UART0_BASE, value, size);
         return;
     }
 
     /* Virtio-BLK */
-    if (addr >= 0x20000000 && addr < 0x20010000 && vm->virtio_blk_enabled) {
+    if (addr >= SV_ADDR_VIRTIO_BLK && addr < SV_ADDR_VIRTIO_BLK + SV_ADDR_VIRTIO_SIZE
+        && vm->virtio_blk_enabled) {
         virtio_mmio_write(&vm->virtio_blk.vdev,
-                          addr - 0x20000000, value, size);
+                          addr - SV_ADDR_VIRTIO_BLK, value, size);
         return;
     }
 
     /* Virtio-CONSOLE */
-    if (addr >= 0x20040000 && addr < 0x20050000 && vm->virtio_console_enabled) {
+    if (addr >= SV_ADDR_VIRTIO_CONSOLE && addr < SV_ADDR_VIRTIO_CONSOLE + SV_ADDR_VIRTIO_SIZE
+        && vm->virtio_console_enabled) {
         virtio_mmio_write(&vm->virtio_console.vdev,
-                          addr - 0x20040000, value, size);
+                          addr - SV_ADDR_VIRTIO_CONSOLE, value, size);
         return;
     }
 
     /* Virtio-NET */
-    if (addr >= 0x20010000 && addr < 0x20020000 && vm->virtio_net_enabled) {
+    if (addr >= SV_ADDR_VIRTIO_NET && addr < SV_ADDR_VIRTIO_NET + SV_ADDR_VIRTIO_SIZE
+        && vm->virtio_net_enabled) {
         virtio_mmio_write(&vm->virtio_net.vdev,
-                          addr - 0x20010000, value, size);
+                          addr - SV_ADDR_VIRTIO_NET, value, size);
         return;
     }
 
@@ -481,9 +487,9 @@ int sv_machine_run(sv_machine_t *vm)
     /* ── Register MMIO regions (informational) ──── */
     if (hv->mmio_register) {
         sv_mmio_handler_t dummy = {NULL, NULL, NULL};
-        hv->mmio_register(hvm, 0x10000000, 0x10000, &dummy);
+        hv->mmio_register(hvm, SV_ADDR_UART0_BASE, SV_ADDR_UART0_SIZE, &dummy);
         if (vm->virtio_blk_enabled)
-            hv->mmio_register(hvm, 0x20000000, 0x10000, &dummy);
+            hv->mmio_register(hvm, SV_ADDR_VIRTIO_BLK, SV_ADDR_VIRTIO_SIZE, &dummy);
     }
 
     /* ── Load kernel/DTB into backend RAM ───────── */

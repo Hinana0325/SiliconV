@@ -27,10 +27,10 @@ SiliconV aims to be **Cuttlefish-compatible** at the hardware level:
 |-------------------|-------------------|--------|
 | crosvm (VMM) | SiliconV hypervisor | In progress |
 | virtio-blk | virtio-blk | ✅ |
-| virtio-net | virtio-net | TODO |
-| virtio-gpu (virgl) | virtio-gpu (virgl) | TODO |
-| virtio-input | virtio-input | TODO |
-| virtio-console | virtio-console | TODO |
+| virtio-net | virtio-net | ✅ | machine.c integration, IRQ 41 |
+| virtio-gpu (virgl) | virtio-gpu (virgl) | TODO | Phase 5, MMIO 0x20030000 |
+| virtio-input | virtio-input | TODO | Phase 7 |
+| virtio-console | virtio-console | ✅ | Guest-Host channel, IRQ 44 |
 | GICv3 | GICv3 | ✅ |
 | PL011 UART | PL011 UART | ✅ |
 | PSCI | PSCI | ✅ |

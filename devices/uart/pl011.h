@@ -4,8 +4,8 @@
  * Emulates ARM PL011 UART for guest serial console.
  * Implements the minimal register set needed for early boot output.
  *
- * MMIO Base: 0x10000000 (from spec/memory/mmio-map.md)
- * IRQ: 32 (from spec/irq/irq-map.md)
+ * MMIO Base: 0x10000000 (see core/memory/mmio_addrs.h)
+ * IRQ: 32 (see spec/irq/irq-map.md)
  */
 
 #ifndef SILICONV_UART_H

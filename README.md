@@ -85,7 +85,10 @@ Display:  virtio-gpu + minigbm + drm_hwcomposer
 │   └── configs/       #   android.config (6.6)
 │
 ├── scripts/           # Build & test scripts
-├── frontend/          # CLI launcher
+├── frontend/          # User interfaces
+│   ├── cli/           #   Command-line launcher (sv-cli)
+│   ├── cocoa/         #   macOS native app (Cocoa + ObjC)
+│   └── qt/            #   Cross-platform GUI (Qt6/C++, Linux + Windows)
 ├── docs/              # Documentation
 └── .github/           # CI/CD workflows
 ```

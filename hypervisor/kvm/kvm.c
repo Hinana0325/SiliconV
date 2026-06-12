@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include "../../core/memory/mmio_addrs.h"
+
 /* Ensure _IOR/_IOW macros are available for fallback definitions below */
 #ifndef _IOR
 #include <linux/ioctl.h>
@@ -151,7 +153,7 @@ static int kvm_create_gic(sv_vm_t *vm)
     struct kvm_device_attr attr = {
         .group = KVM_DEV_ARM_VGIC_GRP_ADDR,
         .attr = KVM_VGIC_V3_ADDR_TYPE_DIST,
-        .addr = (uint64_t)(unsigned long)&(uint64_t){0x08000000},
+        .addr = (uint64_t)(unsigned long)&(uint64_t){SV_ADDR_GICD_BASE},
     };
     if (ioctl(vm->gic_fd, KVM_SET_DEVICE_ATTR, &attr) < 0) {
         fprintf(stderr, "sv: failed to set GIC dist addr: %s\n", strerror(errno));
@@ -159,7 +161,7 @@ static int kvm_create_gic(sv_vm_t *vm)
 
     /* Redistributor address */
     attr.attr = KVM_VGIC_V3_ADDR_TYPE_REDIST;
-    uint64_t redist_base = 0x08010000;
+    uint64_t redist_base = SV_ADDR_GICR_BASE;
     attr.addr = (uint64_t)(unsigned long)&redist_base;
     if (ioctl(vm->gic_fd, KVM_SET_DEVICE_ATTR, &attr) < 0) {
         fprintf(stderr, "sv: failed to set GIC redist addr: %s\n", strerror(errno));
