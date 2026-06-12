@@ -43,15 +43,6 @@
 #ifndef KVM_VGIC_CTRL_INIT
 #define KVM_VGIC_CTRL_INIT          0
 #endif
-
-/* struct kvm_vcpu_init is ARM64-specific — may not exist in cross-compile headers */
-#ifndef __KVM_HAVE_VCPU_INIT
-struct kvm_vcpu_init {
-    __u32 target;
-    __u32 features[7];
-};
-#endif
-
 #ifndef KVM_ARM_PREFERRED_TARGET
 #define KVM_ARM_PREFERRED_TARGET    _IOR(KVMIO, 0xaf, struct kvm_vcpu_init)
 #endif
