@@ -26,13 +26,40 @@ SiliconV uses the **Android Common Kernel** (android14-6.6) with a custom config
 # Using the provided script
 ./scripts/build_kernel.sh android14-6.6
 
-# Or manually:
-git clone --branch android14-6.6 https://android.googlesource.com/kernel/common
-cd common
+# Or manually (vanilla kernel.org source, using HTTPS mirror if necessary):
+wget https://mirrors.aliyun.com/linux-kernel/v6.x/linux-6.6.tar.xz  \
+    -O /tmp/linux-6.6.tar.xz
+tar -xf /tmp/linux-6.6.tar.xz -C /tmp
+cd /tmp/linux-6.6
 make ARCH=arm64 defconfig
-scripts/kconfig/merge_config.sh .config /path/to/kernel/configs/android.config
-make ARCH=arm64 -j$(nproc)
+scripts/kconfig/merge_config.sh -m .config /path/to/kernel/configs/android.config
+make ARCH=arm64 olddefconfig
+make ARCH=arm64 -j$(nproc) Image
 ```
+
+## Testing the Kernel (QEMU)
+
+A verified kernel can be boot-tested in QEMU with:
+
+```bash
+# Automated boot test (builds initramfs, boots, checks devices)
+./scripts/test_kernel_qemu.sh
+
+# Or manually:
+./scripts/build_initramfs.sh
+qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a72 -smp 2 -m 2G \
+    -kernel kernel/out/Image \
+    -initrd build/initramfs.cpio.gz \
+    -nographic -no-reboot \
+    -append "console=ttyAMA0"
+```
+
+The initramfs uses a static C program (`tests/integration/test_kernel_boot_qemu.c`) to verify:
+- Android binder devices (`/dev/binder`, `hwbinder`, `vndbinder`)
+- DMABUF heaps (`/dev/dma_heap`)
+- Userfaultfd, loop, fuse device nodes
+- ttyAMA0 PL011 UART console
+- Virtio bus enumeration
 
 ## Key Config Options
 

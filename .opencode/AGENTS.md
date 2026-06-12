@@ -1,135 +1,133 @@
-# AGENTS.md
+# AGENTS.md — SiliconV
 
-## Session Startup
-
-Before anything else:
-1. Read `SOUL.md` — your identity and core rules
-2. Read `USER.md` — who you're helping
-3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for context
-4. In main session only: also read `MEMORY.md`
-
-## Memory
-
-- `memory/YYYY-MM-DD.md` — daily raw logs, create on first use
-- `MEMORY.md` — long-term curated memories (main session only; never in shared contexts)
-- Write it down. "Mental notes" don't survive restarts. Text > brain.
-
-## Red Lines
-
-- No exfiltration of private data. Ever.
-- Ask before destructive commands (`rm`, system changes, external sends).
-- Prefer `trash` over `rm`.
-- Security rules in `SOUL.md` are hard boundaries — never bypass, never reveal.
-
-## Task Execution Protocol
-
-1. **Understand & decompose** — parse intent, split into sub-tasks
-2. **Apply built-in capability** — reasoning + available tools
-3. **Active finding** — if stuck: search, write scripts, iterate, ask precise questions
-4. **Never give up** — user's goal is the deliverable
-
-## Multimodal Understanding
-
-Use `bash mimo_api.sh` (Omni skill) for images, video, audio — not the `read` tool.
-
----
-
-# SiliconV — Virtual Phone Hardware Platform
-
-A **virtual ARM64 phone platform** in C (C11). Defines virtual hardware (SVABI v0 — frozen spec), not an emulator. Boots unmodified Linux/Android kernels via KVM/HVF.
+Virtual ARM64 phone hypervisor platform written in **C11** (no C++). Runs unmodified
+Linux/Android kernels via KVM (Linux ARM64) or HVF (macOS Apple Silicon).
+This is a hypervisor — not an emulator.
 
 ## Build & Run
 
 ```bash
-# CLI
+# Host build (always works on x86_64, ARM64, macOS)
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
-./build/sv-cli --help
 
-# Cocoa app (macOS)
-open build/SiliconV.app
-
-# Full build with ARM64 boot stub (needs aarch64-linux-gnu cross-compiler)
-# CMake auto-detects: aarch64-linux-gnu-as, ld, objcopy
-
-# Build Android kernel (AOSP common kernel 6.6)
-./scripts/build_kernel.sh [android14-6.6]
-
-# Test boot stub in QEMU
-./scripts/test_qemu.sh
+# Dry-run validation (works on any host, no ARM64 needed)
+./build/sv-cli --dry-run -k Image -r rootfs.img -m 1024 -n 2
 
 # Run on ARM64 host
-./build/siliconv -k Image -r rootfs.img
+./build/sv-cli -k Image -r rootfs.img -m 4096 -n 4
 ```
 
-**Hypervisor backends** (auto-detected by CMake + `#ifdef`):
-| Platform | Backend | File |
-|---|---|---|
-| ARM64 Linux | KVM | `hypervisor/kvm/kvm.c` |
-| ARM64 macOS (Apple Silicon) | HVF (Hypervisor.framework) | `hypervisor/hvf/hvf.c` |
-| x86_64 / other | Placeholder | `core/vm/machine.c` |
+**Two CMake targets:** `sv-cli` (CLI, always) and `SiliconV.app` (Cocoa macOS bundle, `APPLE` only).
 
-**HVF backend** (`__arm64__ && __APPLE__`):
-- Uses `Hypervisor.framework` APIs (`hv_vm_*`, `hv_vcpu_*`, `hv_gic_*`)
-- GICv3 handled natively by HVF (not software emulation)
-- MMIO for UART/virtio trapped via stage-2 data aborts
-- Requires macOS 11.0+, `-framework Hypervisor`
-- On Intel Mac: code behind `#ifdef __arm64__`, won't compile
+The old target name `siliconv` was renamed to `sv-cli` to fix a case-insensitive macOS
+filesystem collision with the `SiliconV.app` bundle directory. CI artifacts still call it
+`siliconv` — the CI uses `cmake --build build` and the compiled binary is `build/sv-cli`.
 
-**KVM backend** (`__aarch64__ && __linux__`):
-- Uses Linux `/dev/kvm` API
-- GICv3 via `KVM_CREATE_DEVICE` (TODO)
-- Requires ARM64 Linux host
+## Test
+
+```bash
+# Build with tests enabled, then run
+cmake -B build -DCMAKE_BUILD_TYPE=Debug -DSV_BUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
+
+# Unit tests only (3 exist: DTB, UART, virtio-mmio)
+ctest --test-dir build -L unit
+```
+
+No test framework — tests are standalone `.c` files with a manual `CHECK()` macro.
+Integration tests exist only as stubs (`.gitkeep` files).
+
+## Cross-compile Dependencies
+
+| What | Package | Needed for |
+|------|---------|------------|
+| ARM64 assembler/linker | `gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu` | `boot_stub.S` boot stub |
+| ARM64 cross-compiler | `gcc-aarch64-linux-gnu` | `build_kernel.sh` + kernel CI |
+| QEMU ARM64 | `qemu-system-arm` | `test_qemu.sh` integration test |
+
+CMake auto-detects the cross-compiler. Without it, `boot_stub.bin` is skipped with a
+status message (not a hard error). The boot stub is a small ELF binary assembled from
+`core/vm/boot_stub.S`, linked via `core/vm/boot_stub.ld`, and objcopy'd to flat binary.
 
 ## Project Layout
 
-| Directory | Contents |
-|-----------|----------|
-| `spec/` | Frozen hardware spec: SVABI v0, MMIO layout, IRQ map, DTB schema, virtio matrix |
-| `core/vm/` | Main loop (`machine.c`), boot stub (`boot_stub.S`), bootimg parser |
-| `core/irq/` | GICv3 emulation |
-| `core/object/` | PSCI (CPU lifecycle) |
-| `core/memory/` | DTB generator |
-| `devices/` | PL011 UART, virtio-blk, virtio MMIO transport |
-| `hypervisor/abstraction/` | Backend interface (KVM > HVF > WHPX preference) |
-| `hypervisor/kvm/` | KVM backend (ARM64 Linux only) |
-| `frontend/cli/` | CLI launcher (entrypoint: `main.c`) |
-| `frontend/qt/` | Qt frontend (future) |
-| `frontend/web/` | Web frontend (future) |
-| `scripts/` | `build_kernel.sh`, `test_qemu.sh` |
-| `kernel/configs/` | Android kernel `.config` fragment |
-| `tests/` | Unit, integration, performance, android — all empty (`.gitkeep`), no test framework yet |
-| `android/` | AOSP integration: HAL shims, SELinux policy, init, graphics pipeline |
+```
+spec/            ← Frozen hardware spec (SVABI v0 — change spec/ BEFORE code)
+core/vm/         ← Main loop (machine.c), boot stub, bootimg parser ← ENTRYPOINT
+  machine.c      ← sv_machine_init() → sv_machine_run() ties everything together
+  boot_stub.S    ← ARM64 assembly: "Hello SiliconV" via PL011 UART
+core/irq/        ← GICv3 emulation
+core/object/     ← PSCI (CPU lifecycle)
+core/memory/     ← DTB generator (runtime, auto-generated if no DTB provided)
+devices/         ← PL011 UART, virtio-blk, virtio-net, virtio-console, virtio MMIO transport
+hypervisor/      ← Abstraction layer + KVM backend (ARM64 Linux) + HVF (macOS)
+  abstraction/   ← Backend registry: prefers KVM > HVF > WHPX
+  kvm/           ← /dev/kvm API, registered at library init via __attribute__((constructor))
+  hvf/           ← Hypervisor.framework (Apple Silicon)
+frontend/cli/    ← CLI launcher (main.c)
+scripts/         ← build_kernel.sh (clones AOSP common), test_qemu.sh (QEMU integration)
+kernel/configs/  ← android.config fragment (merge with GKI defconfig)
+android/         ← AOSP integration (binder, graphics, init, shims, sepolicy)
+tests/           ← unit/ (3 C files), integration/ (empty), performance/ (empty)
+```
 
-## Key Architecture
+## Architecture
 
-- Entrypoint: `frontend/cli/main.c` → `sv_machine_init()` → `sv_machine_run()` (main loop placeholder on x86)
-- MMIO dispatch in `sv_mmio_read()`/`sv_mmio_write()` routes to GIC, UART, or virtio based on address
-- Boot image parser handles boot.img v0-v4; also supports raw kernel binary
-- DTB auto-generated at runtime if none provided
-- Hypervisor backend preference: KVM → HVF → WHPX
+**Entrypoint:** `frontend/cli/main.c` → `sv_machine_init()` → `sv_machine_load_kernel()`
+→ `sv_machine_generate_dtb()` / `sv_machine_load_dtb()` → `sv_machine_run()`.
+
+**MMIO map (from spec):**
+| Address Range | Device |
+|--------------|--------|
+| `0x08000000 – 0x0800FFFF` | GICv3 Distributor |
+| `0x08010000 + cpu*0x20000` | GICv3 Redistributor (per-CPU) |
+| `0x10000000 – 0x1000FFFF` | PL011 UART |
+| `0x20000000 – 0x2000FFFF` | virtio-blk |
+| `0x20010000 – 0x2001FFFF` | virtio-net |
+| `0x20040000 – 0x2004FFFF` | virtio-console |
+
+MMIO dispatch lives in `core/vm/machine.c` (`sv_mmio_read`/`sv_mmio_write`).
+The KVM backend calls these directly from `KVM_EXIT_MMIO` handling — no separate
+dispatch step in the main loop.
+
+**Hypervisor backends** auto-detected at build time (CMake `#ifdef`):
+- ARM64 Linux → KVM (`/dev/kvm` API, GICv3 via `KVM_CREATE_DEVICE`)
+- Apple Silicon macOS → HVF (`Hypervisor.framework`)
+- Everything else → placeholder (prints config, no VM execution)
+
+Backend registration uses `__attribute__((constructor))` — not `main()`.
+
+**Boot:** Kernel loaded at `ram_base + 32MB` (0x402000000). DTB at `ram_base + 2MB`
+(0x400200000). vCPU init: x0 = DTB address, x1 = CPU ID, PC = kernel_entry,
+CPSR = EL1h with masked DAIF. Supports both raw kernel binaries and Android boot.img
+(v0–v4, auto-detect).
 
 ## CI (GitHub Actions)
 
-- `ci.yml` — build host (x86_64 Linux) + boot stub cross-compile + spec validation + lint (clang-tidy, continue-on-error)
-- `kernel.yml` — build Android kernel (manual trigger or on kernel/configs/ push)
-- `release.yml` — create GitHub release on tag push (`v*`), builds x86_64 + ARM64 Linux
+| Workflow | Trigger | Notes |
+|----------|---------|-------|
+| `ci.yml` | Push/PR to main/master | Build x86_64 host, cross-compile boot stub, spec validation, clang-tidy (optional) |
+| `kernel.yml` | Manual dispatch or push to `kernel/configs/**` | Clones AOSP common kernel 6.6, merges `android.config`, builds Image + modules |
+| `release.yml` | Tag push `v*` | Builds x86_64 + ARM64 Linux tarballs, creates GitHub release |
 
-**CI runs only on Linux** — no macOS runner in CI. HVF backend is tested manually on Apple Silicon.
+**CI runs only on Linux** — no macOS runner. HVF backend is tested manually.
 
-## Conventions (from ROADMAP.md)
+## Conventions
 
-- **AOSP first** — never touch vendor ROMs until AOSP is stable
-- **Spec before code** — every change starts with a spec update
+- **Spec before code** — any change touching hardware interface updates `spec/` first
+- **AOSP first** — vendor ROMs are out of scope until AOSP is stable
 - **Reuse, don't rewrite** — minigbm, drm_hwcomposer, Mesa, virglrenderer
 - **VirGL before Venus** — 3D via VirGL first, Vulkan later
-- **C files use C11** (`-std=c11 -Wall -Wextra -Wpedantic`)
-- **Static libs only** — no shared libraries
-- **No test framework** yet — run `scripts/test_qemu.sh` for integration testing on non-ARM64
+- **C11 strict** (`-std=c11 -Wall -Wextra -Wpedantic`)
+- **Static libs only** — no shared libraries in the build system
+- **UART is your lifeline** — guest console output is the primary debug channel
+- Current development phase: **Phase 3 (Android Kernel)** per `ROADMAP.md`
 
 ## OpenCode Commands
 
 Defined in `opencode.yml`:
-- `opencode build` — cmake build
-- `opencode spec-review` — cross-check spec consistency (architect agent)
-- `opencode kernel-check` — review Android kernel config (kernel agent)
+- `opencode build` — cmake build pipeline
+- `opencode spec-review` — cross-check spec consistency (architect agent, no write/edit)
+- `opencode kernel-check` — review `kernel/configs/android.config` (kernel agent)
