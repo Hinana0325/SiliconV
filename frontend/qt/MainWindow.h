@@ -18,6 +18,9 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QSlider>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
 
 #include "VMManager.h"
 class VMDisplayWidget;
@@ -51,6 +54,10 @@ private:
     void applyDarkTheme();
     void updateDeviceTree();
     QString formatSize(qint64 bytes) const;
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
     /* Widgets */
     QSplitter        *m_splitter;
