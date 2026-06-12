@@ -10,6 +10,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 option(SV_BUILD_TESTS "Build SiliconV unit tests" OFF)
+option(SV_BUILD_QT "Build SiliconV Qt6 GUI (requires Qt6)" OFF)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0 -DSV_DEBUG")
@@ -198,10 +199,53 @@ if(APPLE)
     message(STATUS "  Cocoa: SiliconV.app bundle enabled")
 endif()
 
+# ── Linux Qt6 GUI ──────────────────────────────────
+
+if(SV_BUILD_QT)
+    enable_language(CXX)
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+    find_package(Qt6 REQUIRED COMPONENTS Widgets)
+
+    add_executable(siliconv-qt
+        frontend/qt/main.cpp
+        frontend/qt/MainWindow.h
+        frontend/qt/MainWindow.cpp
+        frontend/qt/VMDisplayWidget.h
+        frontend/qt/VMDisplayWidget.cpp
+        frontend/qt/ConsoleWidget.h
+        frontend/qt/ConsoleWidget.cpp
+        frontend/qt/VMManager.h
+        frontend/qt/VMManager.cpp
+    )
+
+    target_include_directories(siliconv-qt PRIVATE
+        core/vm core/irq core/memory core/object
+        devices/uart devices/transport devices/virtio-blk
+        devices/virtio-net devices/virtio-console
+        hypervisor/abstraction
+    )
+
+    target_link_libraries(siliconv-qt PRIVATE
+        Qt6::Widgets
+        sv_machine sv_bootimg sv_gic sv_psci sv_dtb
+        sv_uart sv_virtio sv_virtio_blk sv_virtio_net sv_virtio_console sv_hv
+    )
+
+    if(SV_HAS_KVM)
+        target_link_libraries(siliconv-qt PRIVATE sv_hv_kvm)
+        target_compile_definitions(siliconv-qt PRIVATE SV_HAS_KVM=1)
+    endif()
+
+    message(STATUS "  Qt: siliconv-qt target enabled")
+endif()
+
 # ── Summary ───────────────────────────────────────
 
 message(STATUS "")
 message(STATUS "SiliconV: ${CMAKE_SYSTEM_PROCESSOR} / ${CMAKE_BUILD_TYPE}")
 message(STATUS "  KVM: ${SV_HAS_KVM}")
 message(STATUS "  Cocoa: ${SV_HAS_COCOA}")
+message(STATUS "  Qt: ${SV_BUILD_QT}")
 message(STATUS "")
