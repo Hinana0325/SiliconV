@@ -143,6 +143,10 @@ else()
     message(STATUS "Boot stub skipped (install gcc-aarch64-linux-gnu)")
 endif()
 
+set(SV_HAS_KVM FALSE)
+set(SV_HAS_HVF FALSE)
+set(SV_HAS_COCOA FALSE)
+
 # ── macOS App Bundle ────────────────────────────
 
 if(APPLE)
@@ -261,6 +265,7 @@ endif()
 message(STATUS "")
 message(STATUS "SiliconV: ${CMAKE_SYSTEM_PROCESSOR} / ${CMAKE_BUILD_TYPE}")
 message(STATUS "  KVM: ${SV_HAS_KVM}")
-message(STATUS "  Cocoa: ${SV_HAS_COCOA}")
+message(STATUS "  HVF: ${SV_HAS_HVF}")
+message(STATUS "  Cocoa: ${SV_HAS_COCOA} (macOS)")
 message(STATUS "  Qt: ${SV_BUILD_QT} (${CMAKE_SYSTEM_NAME})")
 message(STATUS "")

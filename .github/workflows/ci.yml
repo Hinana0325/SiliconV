@@ -109,6 +109,33 @@ jobs:
           ls -la build/boot_stub.bin 2>/dev/null || echo "boot_stub.bin not built (cross-compiler may be missing)"
           file build/sv-cli
 
+  # ── Qt6 GUI Build (Linux) ─────────────────────
+  build-qt:
+    name: Build Qt6 GUI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake gcc g++ \
+            qt6-base-dev libgl1-mesa-dev
+
+      - name: Configure
+        run: cmake -B build-qt -DSV_BUILD_QT=ON -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build-qt --parallel $(nproc)
+
+      - name: Verify binary
+        run: |
+          ls -la build-qt/siliconv-qt
+          file build-qt/siliconv-qt
+
   # ── Spec Validation ────────────────────────────
   validate-spec:
     name: Validate Spec

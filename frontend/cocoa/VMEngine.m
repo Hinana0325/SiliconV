@@ -189,7 +189,7 @@ static void engine_uart_tx_callback(uint8_t byte, void *ctx) {
         } else {
             /* Set cmdline before generating DTB */
             if (self.config.cmdline.length > 0) {
-                _machine.dtb_config.cmdline = self.config.cmdline.UTF8String;
+                _machine.dtb_config.cmdline = strdup(self.config.cmdline.UTF8String);
             }
             if (sv_machine_generate_dtb(&_machine) < 0) {
                 [self notifyOutput:@"✗ Failed to generate DTB\n"];

@@ -100,6 +100,12 @@ void sv_machine_destroy(sv_machine_t *vm)
     if (vm->virtio_console_enabled)
         virtio_console_destroy(&vm->virtio_console);
 
+    /* Free allocated cmdline (set by sv_machine_load_kernel or external caller) */
+    if (vm->dtb_config.cmdline) {
+        free((void *)vm->dtb_config.cmdline);
+        vm->dtb_config.cmdline = NULL;
+    }
+
     if (vm->ram)
         free(vm->ram);
 
