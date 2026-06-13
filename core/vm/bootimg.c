@@ -28,6 +28,7 @@ int sv_bootimg_parse(sv_bootimg_t *img, uint8_t *data, size_t size)
     /* Check magic */
     if (memcmp(data, BOOT_MAGIC, BOOT_MAGIC_SIZE) != 0) {
         fprintf(stderr, "bootimg: invalid magic\n");
+        img->raw = NULL;  /* caller owns data lifetime, clear pointer */
         return -1;
     }
 

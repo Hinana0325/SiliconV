@@ -23,7 +23,7 @@ int sv_hv_register(const sv_hv_ops_t *ops)
 
 const sv_hv_ops_t* sv_hv_get_best(void)
 {
-    /* Prefer KVM > HVF > WHPX */
+    /* Priority: KVM > HVF > WHPX > TCG (software fallback) */
     for (int i = 0; i < num_backends; i++) {
         if (backends[i]->type == SV_HV_KVM) return backends[i];
     }
@@ -32,6 +32,9 @@ const sv_hv_ops_t* sv_hv_get_best(void)
     }
     for (int i = 0; i < num_backends; i++) {
         if (backends[i]->type == SV_HV_WHPX) return backends[i];
+    }
+    for (int i = 0; i < num_backends; i++) {
+        if (backends[i]->type == SV_HV_TCG) return backends[i];
     }
     return NULL;
 }

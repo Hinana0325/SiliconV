@@ -155,9 +155,11 @@ int main(int argc, char *argv[])
         fprintf(stderr, "sv: warning: failed to attach virtio-console\n");
     }
 
-    /* Update cmdline if provided */
-    if (cmdline)
-        vm.dtb_config.cmdline = cmdline;
+    /* Update cmdline if provided (strdup: dtb_config owns cmdline memory) */
+    if (cmdline) {
+        free((void *)vm.dtb_config.cmdline);
+        vm.dtb_config.cmdline = strdup(cmdline);
+    }
 
     if (!vm.dtb_addr && sv_machine_generate_dtb(&vm) < 0) {
         sv_machine_destroy(&vm);

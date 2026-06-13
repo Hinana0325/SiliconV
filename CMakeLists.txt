@@ -20,6 +20,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+# Default: no hypervisor backends until detected
+set(SV_HAS_KVM FALSE)
+set(SV_HAS_HVF FALSE)
+set(SV_HAS_COCOA FALSE)
+set(SV_HAS_TCG FALSE)
+
 # ── Core Libraries ────────────────────────────────
 
 add_library(sv_gic STATIC core/irq/gic.c)
@@ -84,6 +90,21 @@ else()
     message(STATUS "KVM/HVF backend skipped (host: ${CMAKE_SYSTEM_PROCESSOR})")
 endif()
 
+# TCG backend — pure software ARM64 emulation, always available
+add_library(sv_hv_tcg STATIC
+    hypervisor/tcg/tcg.c
+    hypervisor/tcg/tcg_decode.c
+    hypervisor/tcg/tcg_exec.c
+    hypervisor/tcg/tcg_mmu.c
+)
+target_include_directories(sv_hv_tcg PUBLIC
+    hypervisor/tcg
+    hypervisor/abstraction
+)
+target_link_libraries(sv_hv_tcg PUBLIC sv_hv)
+set(SV_HAS_TCG TRUE)
+message(STATUS "TCG backend enabled (ARM64 software emulation)")
+
 # ── CLI Tool ─────────────────────────────────────
 
 add_executable(sv-cli frontend/cli/main.c)
@@ -99,6 +120,13 @@ if(SV_HAS_HVF)
     target_link_libraries(sv-cli sv_hv_hvf)
     target_link_libraries(sv-cli "-framework Hypervisor")
     target_compile_definitions(sv-cli PRIVATE SV_HAS_HVF=1)
+endif()
+if(SV_HAS_TCG)
+    # --whole-archive ensures TCG constructor is included even without direct references
+    target_link_libraries(sv-cli
+        -Wl,--whole-archive sv_hv_tcg -Wl,--no-whole-archive
+    )
+    target_compile_definitions(sv-cli PRIVATE SV_HAS_TCG=1)
 endif()
 
 # ── Tests ────────────────────────────────────────
@@ -142,10 +170,6 @@ if(AARCH64_AS AND AARCH64_LD AND AARCH64_OBJCOPY)
 else()
     message(STATUS "Boot stub skipped (install gcc-aarch64-linux-gnu)")
 endif()
-
-set(SV_HAS_KVM FALSE)
-set(SV_HAS_HVF FALSE)
-set(SV_HAS_COCOA FALSE)
 
 # ── macOS App Bundle ────────────────────────────
 
@@ -198,6 +222,10 @@ if(APPLE)
     if(SV_HAS_HVF)
         target_link_libraries(SiliconV sv_hv_hvf "-framework Hypervisor")
         target_compile_definitions(SiliconV PRIVATE SV_HAS_HVF=1)
+    endif()
+    if(SV_HAS_TCG)
+        target_link_libraries(SiliconV sv_hv_tcg)
+        target_compile_definitions(SiliconV PRIVATE SV_HAS_TCG=1)
     endif()
 
     message(STATUS "  Cocoa: SiliconV.app bundle enabled")
@@ -258,6 +286,12 @@ if(SV_BUILD_QT)
         target_compile_definitions(siliconv-qt PRIVATE SV_HAS_KVM=1)
     endif()
 
+    # TCG backend (software fallback)
+    if(SV_HAS_TCG)
+        target_link_libraries(siliconv-qt PRIVATE sv_hv_tcg)
+        target_compile_definitions(siliconv-qt PRIVATE SV_HAS_TCG=1)
+    endif()
+
     # WHPX backend (Windows x64) — future, when hypervisor/whpx/ is implemented
     if(WIN32)
         message(STATUS "  Qt: WHPX backend not yet implemented (use --dry-run for demo)")
@@ -272,6 +306,7 @@ message(STATUS "")
 message(STATUS "SiliconV: ${CMAKE_SYSTEM_PROCESSOR} / ${CMAKE_BUILD_TYPE}")
 message(STATUS "  KVM: ${SV_HAS_KVM}")
 message(STATUS "  HVF: ${SV_HAS_HVF}")
+message(STATUS "  TCG: ${SV_HAS_TCG}")
 message(STATUS "  Cocoa: ${SV_HAS_COCOA} (macOS)")
 message(STATUS "  Qt: ${SV_BUILD_QT} (${CMAKE_SYSTEM_NAME})")
 message(STATUS "")

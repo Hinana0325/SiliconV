@@ -31,52 +31,88 @@ if ! command -v "${CROSS_COMPILE}gcc" &>/dev/null; then
 fi
 
 # ── Clone kernel source ─────────────────────────────
-# Try multiple sources for the AOSP common kernel:
-# 1. android.googlesource.com (official, may be blocked)
-# 2. Tarball mirror (fallback)
-# 3. kernel.org stable Linux (last resort, lacks Android patches)
+# Try multiple sources (Alibaba Cloud mirrors first for China access):
+# 1. mirrors.aliyun.com/android.googlesource.com (AOSP mirror, preferred for China)
+# 2. mirrors.aliyun.com/linux-kernel/ (vanilla kernel.org mirror, China)
+# 3. android.googlesource.com (official, may be blocked in China)
+# 4. cdn.kernel.org (vanilla kernel.org, last resort)
+
+ALIYUN_AOSP_KERNEL="https://mirrors.aliyun.com/android.googlesource.com/kernel/common"
+ALIYUN_VANILLA_URL="https://mirrors.aliyun.com/linux-kernel/v6.x/linux-${BRANCH##*.}.tar.xz"
+GOOGLE_AOSP_KERNEL="https://android.googlesource.com/kernel/common"
+KERNEL_ORG_URL="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${BRANCH##*.}.tar.xz"
 
 if [ ! -d "${BUILD_DIR}/.git" ]; then
     echo "Cloning AOSP common kernel (${BRANCH})..."
     mkdir -p "$(dirname "${BUILD_DIR}")"
 
-    # Try official AOSP source first
+    CLONE_OK=false
+
+    # Method 1: Alibaba Cloud AOSP mirror (git clone)
+    echo "  [1/4] Trying Alibaba Cloud AOSP mirror (git)..."
     if git clone --depth=1 --branch "${BRANCH}" \
-        https://android.googlesource.com/kernel/common \
+        "${ALIYUN_AOSP_KERNEL}" \
         "${BUILD_DIR}" 2>/dev/null; then
-        echo "  ✓ Cloned from android.googlesource.com"
+        echo "  ✓ Cloned from mirrors.aliyun.com/android.googlesource.com"
+        CLONE_OK=true
     else
-        echo "  ✗ android.googlesource.com unreachable, trying tarball..."
+        echo "  ✗ Alibaba Cloud AOSP mirror unreachable"
+    fi
 
-        # Try tarball download
-        TARBALL_URL="https://android.googlesource.com/kernel/common/+archive/refs/heads/${BRANCH}.tar.gz"
-        mkdir -p "${BUILD_DIR}"
-
-        if curl -fsSL --connect-timeout 10 -o /tmp/kernel-src.tar.gz "${TARBALL_URL}" 2>/dev/null && \
-           [ -s /tmp/kernel-src.tar.gz ]; then
-            echo "  ✓ Downloaded tarball from android.googlesource.com"
-            tar -xzf /tmp/kernel-src.tar.gz -C "${BUILD_DIR}"
-            rm -f /tmp/kernel-src.tar.gz
+    # Method 2: Alibaba Cloud vanilla kernel mirror (tarball, fast in China)
+    if [ "${CLONE_OK}" = false ]; then
+        echo "  [2/4] Trying Alibaba Cloud vanilla kernel mirror..."
+        if curl -fsSL --connect-timeout 15 -o /tmp/linux-src.tar.xz "${ALIYUN_VANILLA_URL}" 2>/dev/null && \
+           [ -s /tmp/linux-src.tar.xz ]; then
+            echo "  ✓ Downloaded Linux ${BRANCH##*.} from mirrors.aliyun.com/linux-kernel"
+            mkdir -p "${BUILD_DIR}"
+            tar -xJf /tmp/linux-src.tar.xz -C "${BUILD_DIR}" --strip-components=1
+            rm -f /tmp/linux-src.tar.xz
+            echo "  WARNING: Using vanilla Linux — lacks Android-specific patches (binder etc.)"
+            CLONE_OK=true
         else
-            echo "  ✗ Tarball download failed, trying kernel.org stable..."
-
-            # Fallback: use vanilla Linux 6.6 from kernel.org
-            # This lacks Android-specific patches (binder, etc.) but has DM_VERITY
-            LINUX_VERSION="6.6"
-            STABLE_URL="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${LINUX_VERSION}.tar.xz"
-
-            if curl -fsSL --connect-timeout 10 -o /tmp/linux-src.tar.xz "${STABLE_URL}" 2>/dev/null && \
-               [ -s /tmp/linux-src.tar.xz ]; then
-                echo "  ✓ Downloaded Linux ${LINUX_VERSION} from kernel.org"
-                tar -xJf /tmp/linux-src.tar.xz -C "${BUILD_DIR}" --strip-components=1
-                rm -f /tmp/linux-src.tar.xz
-                echo "  WARNING: Using vanilla Linux ${LINUX_VERSION} — lacks Android patches"
-            else
-                echo "ERROR: Cannot download kernel source from any mirror"
-                echo "Please manually clone or download kernel source to: ${BUILD_DIR}"
-                exit 1
-            fi
+            echo "  ✗ Alibaba Cloud vanilla kernel mirror failed"
         fi
+    fi
+
+    # Method 3: Official android.googlesource.com (git)
+    if [ "${CLONE_OK}" = false ]; then
+        echo "  [3/4] Trying official AOSP source (git)..."
+        if git clone --depth=1 --branch "${BRANCH}" \
+            "${GOOGLE_AOSP_KERNEL}" \
+            "${BUILD_DIR}" 2>/dev/null; then
+            echo "  ✓ Cloned from android.googlesource.com"
+            CLONE_OK=true
+        else
+            echo "  ✗ android.googlesource.com unreachable"
+        fi
+    fi
+
+    # Method 4: kernel.org vanilla tarball (last resort)
+    if [ "${CLONE_OK}" = false ]; then
+        echo "  [4/4] Trying kernel.org stable (last resort)..."
+        if curl -fsSL --connect-timeout 15 -o /tmp/linux-src.tar.xz "${KERNEL_ORG_URL}" 2>/dev/null && \
+           [ -s /tmp/linux-src.tar.xz ]; then
+            echo "  ✓ Downloaded Linux ${BRANCH##*.} from kernel.org"
+            mkdir -p "${BUILD_DIR}"
+            tar -xJf /tmp/linux-src.tar.xz -C "${BUILD_DIR}" --strip-components=1
+            rm -f /tmp/linux-src.tar.xz
+            echo "  WARNING: Using vanilla Linux — lacks Android-specific patches"
+            CLONE_OK=true
+        else
+            echo "  ✗ kernel.org unreachable"
+        fi
+    fi
+
+    if [ "${CLONE_OK}" = false ]; then
+        echo ""
+        echo "ERROR: Cannot download kernel source from any mirror."
+        echo ""
+        echo "Manual options:"
+        echo "  1. Alibaba Cloud: wget ${ALIYUN_VANILLA_URL}"
+        echo "  2. kernel.org:    wget ${KERNEL_ORG_URL}"
+        echo "  3. Place extracted source in: ${BUILD_DIR}"
+        exit 1
     fi
 fi
 

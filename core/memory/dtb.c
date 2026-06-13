@@ -365,10 +365,11 @@ dtb_config_t dtb_config_default(int num_cpus, uint64_t ram_size)
             { 0x20040000, 44, 3 },  /* virtio-console */
         },
         .num_virtio = 5,
-        .cmdline = "console=ttyAMA0 earlycon=pl011,0x10000000 "
-                   "androidboot.hardware=siliconv "
-                   "androidboot.selinux=permissive "
-                   "root=/dev/vda rw",
+        .cmdline = NULL,
     };
+    cfg.cmdline = strdup("console=ttyAMA0 earlycon=pl011,0x10000000 "
+                          "androidboot.hardware=siliconv "
+                          "androidboot.selinux=permissive "
+                          "root=/dev/vda rw");
     return cfg;
 }

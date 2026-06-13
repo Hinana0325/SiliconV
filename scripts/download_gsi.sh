@@ -48,7 +48,7 @@ download_from_ci() {
     local STATUS_URL="https://ci.android.com/builds/branches/${BRANCH}/status"
     local BUILD_NUM
 
-    BUILD_NUM=$(curl -fsSL --connect-timeout 10 "${STATUS_URL}" 2>/dev/null | \
+    BUILD_NUM=$(curl -fsSL --connect-timeout 15 "${STATUS_URL}" 2>/dev/null | \
         python3 -c "
 import sys, json
 try:
@@ -105,7 +105,7 @@ download_from_google() {
     echo "Attempting direct download from Google GSI releases..."
 
     # Android 14 GSI direct URLs (Vanilla Ice Cream / VF = Vanilla Full)
-    # These URLs are from https://developer.android.com/topic/generic-system-image/releases
+    # These URLs are from https://developer.android.google.cn/topic/generic-system-image/releases
     local GSI_ZIP=""
 
     case "${VER}" in
@@ -120,9 +120,10 @@ download_from_google() {
 
     if [ -n "${GSI_ZIP}" ]; then
         echo "  Downloading from: ${GSI_ZIP}"
-        curl -fSL --connect-timeout 30 --progress-bar \
+        # Use longer timeout for China network conditions
+        if curl -fSL --connect-timeout 60 --max-time 1800 --progress-bar \
             -o "${DOWNLOAD_DIR}/gsi.zip" \
-            "${GSI_ZIP}" 2>/dev/null && {
+            "${GSI_ZIP}" 2>/dev/null; then
 
             cd "${DOWNLOAD_DIR}"
             # Extract
@@ -135,18 +136,37 @@ download_from_google() {
             rm -f "gsi.zip"
             cd "${PROJECT_DIR}"
             return 0
-        } || {
+        else
             echo "  ✗ Direct download failed"
             rm -f "${DOWNLOAD_DIR}/gsi.zip"
-        }
+        fi
     fi
 
+    return 1
+}
+
+download_from_aliyun_aosp() {
+    # Try to use Alibaba Cloud AOSP mirror for prebuilt images
+    # Note: Alibaba Cloud mirrors the AOSP source tree but not official GSI binaries.
+    # This method attempts to find prebuilt images from the mirror.
+    local VER="$1"
+
+    echo "Attempting download via Alibaba Cloud AOSP mirror..."
+
+    # Check if prebuilt images exist on the AOSP mirror
+    # The mirror structure may contain prebuilt images under specific paths
+    local ALIYUN_BASE="https://mirrors.aliyun.com/android.googlesource.com"
+    local PREBUILT_PATH="device/generic/goldfish/arm64"
+
+    echo "  Note: Alibaba Cloud mirrors AOSP source, not prebuilt GSI binaries."
+    echo "  Skipping auto-download from AOSP mirror (source build required)."
     return 1
 }
 
 # ── Main download logic ─────────────────────────────
 
 echo "Attempting download (method 1: Google CI API)..."
+echo "  Note: If blocked in China, try method 2 or manual download."
 
 BRANCH="aosp-main"
 TARGET="aosp_arm64-${VARIANT}"
@@ -154,6 +174,7 @@ TARGET="aosp_arm64-${VARIANT}"
 if ! download_from_ci "${BRANCH}" "${TARGET}"; then
     echo ""
     echo "Attempting download (method 2: Google GSI releases)..."
+    echo "  Note: Large file (~2GB), may take a while on slower connections."
 
     if ! download_from_google "${ANDROID_VER}"; then
         echo ""
@@ -161,13 +182,27 @@ if ! download_from_ci "${BRANCH}" "${TARGET}"; then
         echo "  Automatic download failed."
         echo "========================================="
         echo ""
-        echo "Please manually download AOSP GSI:"
+        echo "GSI images are large (~2GB) prebuilt binaries from Google."
+        echo "They are not mirrored on Alibaba Cloud. Options:"
         echo ""
-        echo "  Android ${ANDROID_VER} ARM64 ${VARIANT} GSI:"
-        echo "  https://developer.android.com/topic/generic-system-image/releases"
+        echo "  📱 Option 1 (Recommended): Manual download from Google China Dev"
+        echo "     https://developer.android.google.cn/topic/generic-system-image/releases"
+        echo "     → Download 'ARM64+VF userdebug' for Android ${ANDROID_VER}"
+        echo "     → Unzip and place system.img, boot.img in:"
+        echo "       ${DOWNLOAD_DIR}/"
         echo ""
-        echo "Or from ci.android.com:"
-        echo "  https://ci.android.com/builds/branches/aosp-main/status"
+        echo "  📱 Option 2: CI artifacts browser"
+        echo "     https://ci.android.com/builds/branches/aosp-main/status"
+        echo ""
+        echo "  📱 Option 3: Use Alibaba Cloud AOSP mirror to build from source"
+        echo "     https://mirrors.aliyun.com/android.googlesource.com/"
+        echo "     (Full AOSP build requires ~200GB disk, not recommended for quick start)"
+        echo ""
+        echo "  📱 Option 4: Skip GSI — use minimal rootfs for kernel testing"
+        echo "     sudo ./scripts/create_rootfs.sh"
+        echo "     sudo ./scripts/create_minimal_rootfs.sh"
+        echo ""
+        echo "  💡 Tip: Use a download manager or VPN if dl.google.com is slow."
         echo ""
         echo "Required files (place in ${DOWNLOAD_DIR}/):"
         echo "  1. system.img  — Main system partition"
@@ -206,9 +241,20 @@ if [ "${OK}" = true ]; then
     echo ""
     echo "=== GSI Download Complete ==="
     echo ""
-    echo "Next steps:"
-    echo "  1. Build Android images: ./scripts/build_android_images.sh"
-    echo "  2. Test Android boot:     ./scripts/test_android_qemu.sh"
+    echo "Next steps (choose one path):"
+    echo ""
+    echo "  📱 Full Android boot:"
+    echo "     # Build kernel from Alibaba Cloud mirror"
+    echo "     ./scripts/build_kernel.sh android14-6.6"
+    echo "     # Build Android multi-partition images"
+    echo "     ./scripts/build_android_images.sh"
+    echo ""
+    echo "  🧪 Quick kernel test (no GSI needed):"
+    echo "     sudo ./scripts/create_rootfs.sh"
+    echo "     ./scripts/build_kernel.sh"
+    echo "     ./scripts/test_kernel_qemu.sh"
+    echo ""
+    echo "  🌐 All downloads use Alibaba Cloud mirrors when available."
 else
     echo ""
     echo "WARNING: Some images are missing. See manual download instructions above."

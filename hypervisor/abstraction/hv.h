@@ -20,6 +20,7 @@ typedef enum {
     SV_HV_KVM,      /* Linux KVM */
     SV_HV_HVF,      /* macOS Hypervisor.framework */
     SV_HV_WHPX,     /* Windows Hypervisor Platform */
+    SV_HV_TCG,      /* Pure software ARM64→host binary translation */
 } sv_hv_type_t;
 
 /* VM configuration */

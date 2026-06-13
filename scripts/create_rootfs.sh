@@ -39,18 +39,37 @@ command -v mkfs.ext4 >/dev/null 2>&1 || { fail "mkfs.ext4 not found"; exit 1; }
 
 if [ ! -f "${BUSYBOX_SRC}/Makefile" ]; then
     echo "Downloading busybox source..."
-    mkdir -p "${BUSYBOX_SRC}"
 
-    # Try Debian mirror first
-    if ! wget -q -O /tmp/busybox.tar.bz2 --timeout=30 \
-        "http://deb.debian.org/debian/pool/main/b/busybox/busybox_${BUSYBOX_VERSION}.orig.tar.bz2"; then
-        fail "Failed to download busybox source"
+    mkdir -p "${BUSYBOX_SRC}"
+    DOWNLOAD_OK=false
+
+    # Try Alibaba Cloud Debian mirror first (fast in China)
+    ALIYUN_BUSYBOX_URL="https://mirrors.aliyun.com/debian/pool/main/b/busybox/busybox_${BUSYBOX_VERSION}.orig.tar.bz2"
+    echo "  Trying Alibaba Cloud Debian mirror..."
+    if wget -q -O /tmp/busybox.tar.bz2 --timeout=30 "${ALIYUN_BUSYBOX_URL}" 2>/dev/null && \
+       [ -s /tmp/busybox.tar.bz2 ]; then
+        echo "  ✓ Downloaded from mirrors.aliyun.com/debian"
+        DOWNLOAD_OK=true
+    else
+        echo "  ✗ Alibaba Cloud mirror failed, trying deb.debian.org..."
+        if wget -q -O /tmp/busybox.tar.bz2 --timeout=30 \
+            "http://deb.debian.org/debian/pool/main/b/busybox/busybox_${BUSYBOX_VERSION}.orig.tar.bz2" 2>/dev/null && \
+           [ -s /tmp/busybox.tar.bz2 ]; then
+            echo "  ✓ Downloaded from deb.debian.org"
+            DOWNLOAD_OK=true
+        fi
+    fi
+
+    if [ "${DOWNLOAD_OK}" = false ]; then
+        fail "Failed to download busybox source from any mirror"
+        echo "  Manual: wget ${ALIYUN_BUSYBOX_URL}"
         exit 1
     fi
 
-    tar -xf /tmp/busybox.tar.bz2 -C "${BUSYBOX_SRC}" --strip-components=1 2>/dev/null || \
-    tar -xf /tmp/busybox.tar.bz2 -C /tmp/ 2>/dev/null && \
-    mv "/tmp/busybox-${BUSYBOX_VERSION}"/* "${BUSYBOX_SRC}/"
+    tar -xf /tmp/busybox.tar.bz2 -C "${BUSYBOX_SRC}" --strip-components=1 2>/dev/null || {
+        tar -xf /tmp/busybox.tar.bz2 -C /tmp/ 2>/dev/null || true
+        mv "/tmp/busybox-${BUSYBOX_VERSION}"/* "${BUSYBOX_SRC}/" 2>/dev/null || true
+    }
     rm -f /tmp/busybox.tar.bz2
     pass "busybox source downloaded"
 else
@@ -166,7 +185,7 @@ CONFEOF
     echo "# CONFIG_SHA1_HWACCEL is not set" >> .config
     echo "# CONFIG_SHA256_HWACCEL is not set" >> .config
 
-    yes "" | make oldconfig 2>/dev/null
+    yes "1" | make oldconfig 2>/dev/null
     make -j$(nproc) 2>&1 | tail -5
 
     cp busybox "${BUSYBOX_BIN}"
