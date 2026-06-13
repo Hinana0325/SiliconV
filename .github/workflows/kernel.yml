@@ -11,18 +11,19 @@ on:
       kernel_branch:
         description: 'Kernel branch'
         required: true
-        default: 'android14-6.6'
+        default: 'android15-6.6'
         type: choice
         options:
-          - android14-6.6
-          - android14-6.1
+          - android15-6.6
+          - android15-6.6-lts
+          - android15-6.1
           - android-mainline
   push:
     paths:
       - 'kernel/configs/**'
 
 env:
-  KERNEL_BRANCH: android14-6.6
+  KERNEL_BRANCH: android15-6.6
 
 jobs:
   build-kernel:
