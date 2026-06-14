@@ -56,6 +56,26 @@ sudo mknod -m 666 "$BUILD_DIR/dev/null" c 1 3 2>/dev/null || true
 sudo mknod -m 666 "$BUILD_DIR/dev/console" c 5 1 2>/dev/null || true
 sudo mknod -m 600 "$BUILD_DIR/dev/ttyAMA0" c 204 64 2>/dev/null || true
 
+# Include SELinux policy files
+mkdir -p "$BUILD_DIR/selinux_policy"
+
+if [ -f "${PROJECT_DIR}/images/precompiled_sepolicy" ]; then
+    echo "  Including precompiled_sepolicy (host-compiled)..."
+    cp "${PROJECT_DIR}/images/precompiled_sepolicy" "$BUILD_DIR/selinux_policy/"
+else
+    echo "  WARNING: precompiled_sepolicy not found"
+fi
+
+if [ -f "${PROJECT_DIR}/images/plat_sepolicy_patched.cil" ]; then
+    echo "  Including patched plat_sepolicy.cil (for hash verification)..."
+    cp "${PROJECT_DIR}/images/plat_sepolicy_patched.cil" "$BUILD_DIR/selinux_policy/"
+else
+    echo "  WARNING: patched plat_sepolicy.cil not found"
+fi
+
+# Write the expected sha256 hash for precompiled sepolicy verification
+echo "03f08c8d1aff00a2b88730df4cb00d63f44b3e8194d9dc84aa3991d27dd2edeb" > "$BUILD_DIR/selinux_policy/plat_sepolicy_and_mapping.sha256"
+
 # Create initramfs cpio archive
 echo "  CPIO initramfs.cpio.gz"
 cd "$BUILD_DIR"
