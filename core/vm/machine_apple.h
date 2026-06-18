@@ -26,6 +26,10 @@
 #include "../../devices/apple-sep/apple_sep.h"
 #include "../../devices/apple-wdt/apple_wdt.h"
 #include "../../devices/apple-nvram/apple_nvram.h"
+#include "../../devices/apple-timer/apple_timer.h"
+#include "../../devices/apple-gpio/apple_gpio.h"
+#include "../../devices/apple-i2c/apple_i2c.h"
+#include "../../devices/apple-spmi/apple_spmi.h"
 #include "../boot/apple/xnu_boot.h"
 #include "../memory/dtb.h"
 #include "../object/psci.h"
@@ -44,6 +48,10 @@ typedef struct {
     apple_sep_state_t   sep;            /* Secure Enclave */
     apple_wdt_state_t   wdt;            /* Watchdog timer */
     apple_nvram_state_t nvram;          /* NVRAM storage */
+    apple_timer_state_t timer;          /* System timer/counter */
+    apple_gpio_state_t  gpio;           /* General-purpose I/O */
+    apple_i2c_state_t   i2c;            /* I2C bus controller */
+    apple_spmi_state_t  spmi;           /* System Power Management Interface */
 
     /* PSCI (shared with Android profile) */
     psci_state_t        psci;

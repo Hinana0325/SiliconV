@@ -83,6 +83,10 @@ static uint64_t apple_dispatch_read(sv_machine_apple_t *vm, uint64_t addr, uint6
     case 4:  return apple_sep_mmio_read(&vm->sep, off, 4);
     case 5:  return apple_wdt_mmio_read(&vm->wdt, off, 4);
     case 6:  return apple_nvram_mmio_read(&vm->nvram, off, 4);
+    case 7:  return apple_timer_mmio_read(&vm->timer, off, 4);
+    case 8:  return apple_gpio_mmio_read(&vm->gpio, off, 4);
+    case 9:  return apple_i2c_mmio_read(&vm->i2c, off, 4);
+    case 10: return apple_spmi_mmio_read(&vm->spmi, off, 4);
     default: return 0;
     }
 }
@@ -100,6 +104,10 @@ static void apple_dispatch_write(sv_machine_apple_t *vm, uint64_t addr, uint64_t
     case 4:  apple_sep_mmio_write(&vm->sep, off, value, 4); break;
     case 5:  apple_wdt_mmio_write(&vm->wdt, off, value, 4); break;
     case 6:  apple_nvram_mmio_write(&vm->nvram, off, value, 4); break;
+    case 7:  apple_timer_mmio_write(&vm->timer, off, value, 4); break;
+    case 8:  apple_gpio_mmio_write(&vm->gpio, off, value, 4); break;
+    case 9:  apple_i2c_mmio_write(&vm->i2c, off, value, 4); break;
+    case 10: apple_spmi_mmio_write(&vm->spmi, off, value, 4); break;
     default: break;
     }
 }
@@ -120,6 +128,10 @@ static apple_mmio_region_t apple_mmio_regions[] = {
     { SV_APPLE_SEP_BASE,     SV_APPLE_SEP_END,         "sep",    4 },
     { SV_APPLE_WDT_BASE,     SV_APPLE_WDT_BASE + SV_APPLE_WDT_SIZE - 1,     "wdt",    5 },
     { SV_APPLE_NVRAM_BASE,   SV_APPLE_NVRAM_BASE + SV_APPLE_NVRAM_SIZE - 1, "nvram",  6 },
+    { SV_APPLE_TIMER_BASE,   SV_APPLE_TIMER_BASE + SV_APPLE_TIMER_SIZE - 1, "timer",  7 },
+    { SV_APPLE_GPIO_BASE,    SV_APPLE_GPIO_BASE + SV_APPLE_GPIO_SIZE - 1,   "gpio",   8 },
+    { SV_APPLE_I2C0_BASE,    SV_APPLE_I2C0_BASE + SV_APPLE_I2C0_SIZE - 1,   "i2c0",   9 },
+    { SV_APPLE_SPMI_BASE,    SV_APPLE_SPMI_BASE + SV_APPLE_SPMI_SIZE - 1,   "spmi",  10 },
 };
 #define APPLE_NUM_MMIO_REGIONS (sizeof(apple_mmio_regions)/sizeof(apple_mmio_regions[0]))
 
@@ -165,6 +177,18 @@ int sv_machine_apple_init(sv_machine_apple_t *vm, int num_cpus, uint64_t ram_siz
     /* NVRAM */
     apple_nvram_init(&vm->nvram);
 
+    /* Timer (system counter) */
+    apple_timer_init(&vm->timer);
+
+    /* GPIO */
+    apple_gpio_init(&vm->gpio);
+
+    /* I2C */
+    apple_i2c_init(&vm->i2c);
+
+    /* SPMI (power management) */
+    apple_spmi_init(&vm->spmi);
+
     /* PSCI */
     psci_init(&vm->psci, num_cpus);
 
@@ -180,7 +204,7 @@ int sv_machine_apple_init(sv_machine_apple_t *vm, int num_cpus, uint64_t ram_siz
 
     printf("sv_apple: Apple VM initialized (%d CPUs, %lu MB RAM)\n",
            num_cpus, (unsigned long)(ram_size / (1024 * 1024)));
-    printf("sv_apple: AIC (interrupt), S5L UART, DART, SEP, WDT, NVRAM ready\n");
+    printf("sv_apple: AIC, S5L UART, DART, SEP, WDT, NVRAM, Timer, GPIO, I2C, SPMI ready\n");
 
     return 0;
 }
@@ -468,6 +492,10 @@ int sv_machine_apple_run(sv_machine_apple_t *vm)
         hv->mmio_register(hvm, SV_APPLE_SEP_BASE, SV_APPLE_SEP_SIZE, &dummy);
         hv->mmio_register(hvm, SV_APPLE_WDT_BASE, SV_APPLE_WDT_SIZE, &dummy);
         hv->mmio_register(hvm, SV_APPLE_NVRAM_BASE, SV_APPLE_NVRAM_SIZE, &dummy);
+        hv->mmio_register(hvm, SV_APPLE_TIMER_BASE, SV_APPLE_TIMER_SIZE, &dummy);
+        hv->mmio_register(hvm, SV_APPLE_GPIO_BASE, SV_APPLE_GPIO_SIZE, &dummy);
+        hv->mmio_register(hvm, SV_APPLE_I2C0_BASE, SV_APPLE_I2C0_SIZE, &dummy);
+        hv->mmio_register(hvm, SV_APPLE_SPMI_BASE, SV_APPLE_SPMI_SIZE, &dummy);
     }
 
     /* Load kernel/bootargs into backend RAM */

@@ -91,6 +91,18 @@ target_include_directories(sv_apple_wdt PUBLIC devices/apple-wdt)
 add_library(sv_apple_nvram STATIC devices/apple-nvram/apple_nvram.c)
 target_include_directories(sv_apple_nvram PUBLIC devices/apple-nvram)
 
+add_library(sv_apple_timer STATIC devices/apple-timer/apple_timer.c)
+target_include_directories(sv_apple_timer PUBLIC devices/apple-timer)
+
+add_library(sv_apple_gpio STATIC devices/apple-gpio/apple_gpio.c)
+target_include_directories(sv_apple_gpio PUBLIC devices/apple-gpio)
+
+add_library(sv_apple_i2c STATIC devices/apple-i2c/apple_i2c.c)
+target_include_directories(sv_apple_i2c PUBLIC devices/apple-i2c)
+
+add_library(sv_apple_spmi STATIC devices/apple-spmi/apple_spmi.c)
+target_include_directories(sv_apple_spmi PUBLIC devices/apple-spmi)
+
 # ── Apple Boot Libraries ─────────────────────────
 
 add_library(sv_apple_img4 STATIC core/boot/apple/img4.c)
@@ -117,6 +129,7 @@ target_include_directories(sv_machine_apple PUBLIC
     core/vm core/irq core/memory core/object
     devices/apple-aic devices/apple-uart devices/apple-dart
     devices/apple-sep devices/apple-wdt devices/apple-nvram
+    devices/apple-timer devices/apple-gpio devices/apple-i2c devices/apple-spmi
     devices/transport devices/virtio-blk devices/virtio-net
     devices/virtio-console
     core/boot/apple
@@ -124,7 +137,8 @@ target_include_directories(sv_machine_apple PUBLIC
 )
 target_link_libraries(sv_machine_apple PUBLIC
     sv_apple_aic sv_apple_uart sv_apple_dart sv_apple_sep
-    sv_apple_wdt sv_apple_nvram sv_apple_xnuboot
+    sv_apple_wdt sv_apple_nvram sv_apple_timer sv_apple_gpio
+    sv_apple_i2c sv_apple_spmi sv_apple_xnuboot
     sv_psci sv_virtio sv_virtio_blk sv_virtio_net sv_virtio_console
 )
 
@@ -170,7 +184,8 @@ target_link_libraries(sv-cli
     sv_uart sv_virtio sv_virtio_blk sv_virtio_net sv_virtio_console sv_hv
     sv_machine_apple
     sv_apple_aic sv_apple_uart sv_apple_dart sv_apple_sep
-    sv_apple_wdt sv_apple_nvram
+    sv_apple_wdt sv_apple_nvram sv_apple_timer sv_apple_gpio
+    sv_apple_i2c sv_apple_spmi
     sv_apple_img4 sv_apple_macho sv_apple_dtre sv_apple_bootargs sv_apple_xnuboot
 )
 if(SV_HAS_KVM)

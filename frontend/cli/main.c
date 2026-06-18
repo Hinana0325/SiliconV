@@ -307,6 +307,14 @@ int main(int argc, char *argv[])
                    (unsigned long)SV_APPLE_WDT_BASE, SV_IRQ_APPLE_WDT);
             printf("  NVRAM      0x%08lx  IRQ %d\n",
                    (unsigned long)SV_APPLE_NVRAM_BASE, SV_IRQ_APPLE_NVRAM);
+            printf("  Timer      0x%08lx  IRQ %d\n",
+                   (unsigned long)SV_APPLE_TIMER_BASE, SV_IRQ_APPLE_TIMER);
+            printf("  GPIO       0x%08lx  IRQ %d\n",
+                   (unsigned long)SV_APPLE_GPIO_BASE, SV_IRQ_APPLE_GPIO);
+            printf("  I2C        0x%08lx  IRQ %d\n",
+                   (unsigned long)SV_APPLE_I2C0_BASE, SV_IRQ_APPLE_I2C0);
+            printf("  SPMI       0x%08lx  IRQ %d\n",
+                   (unsigned long)SV_APPLE_SPMI_BASE, SV_IRQ_APPLE_SPMI);
             printf("  Virtio-BLK 0x%08lx  IRQ %d\n",
                    (unsigned long)SV_ADDR_VIRTIO_BLK, SV_IRQ_APPLE_VIRTIO_BLK0);
             printf("  RAM (Apple) 0x%llx  (%llu MB)\n",
