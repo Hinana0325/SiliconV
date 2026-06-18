@@ -81,15 +81,19 @@ static int tcg_step(tcg_vcpu_t *vcpu)
 {
     tcg_vm_t *vm = vcpu->vm;
 
+    /* Sync virt_pc with pc (virt_pc is used for PC-relative computations by ADRP/ADR) */
+    vcpu->virt_pc = vcpu->pc;
+
     /* Fetch instruction from guest memory */
     uint32_t insn;
-    if (tcg_mmu_read(vm, vcpu->pc, &insn, 4) < 0) {
+    if (tcg_mmu_read(vcpu, vcpu->pc, &insn, 4) < 0) {
         fprintf(stderr, "tcg: instruction fetch failed at PC=0x%lx\n",
                 (unsigned long)vcpu->pc);
         return -1;
     }
 
     vcpu->pc += 4;
+    vcpu->virt_pc = vcpu->pc;  /* Keep virt_pc in sync with pc */
     vcpu->insn_count++;
 
     /* Decode and execute */

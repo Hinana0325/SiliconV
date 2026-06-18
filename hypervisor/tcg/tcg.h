@@ -59,7 +59,8 @@ typedef struct tcg_vcpu {
     uint64_t  x[31];
 
     /* Special registers */
-    uint64_t  pc;
+    uint64_t  pc;            /* Current program counter (virtual address) */
+    uint64_t  virt_pc;       /* Virtual PC for ADRP/ADR calculations (same as pc when MMU on) */
     uint64_t  sp_el0;
     uint64_t  sp_el1;
     uint64_t  elr_el1;
@@ -133,5 +134,25 @@ int tcg_vcpu_set_reg(sv_vcpu_t *vcpu, uint64_t reg, uint64_t val);
 
 /* Shutdown TCG backend */
 void tcg_shutdown(void);
+
+/* ── TCG-specific helpers (for machine.c integration) ──── */
+
+/*
+ * Enable MMU on a TCG vCPU for kernel boot.
+ *
+ * This sets up the system registers to enable virtual→physical
+ * address translation, and sets the vCPU's PC to the kernel's
+ * virtual entry point (with virt_pc tracking for ADRP).
+ *
+ * Must be called after the vCPU has been initialized and its
+ * general-purpose registers have been set (including X0).
+ *
+ * @param vcpu           The TCG vCPU
+ * @param virt_pc        Virtual address of the kernel entry point
+ * @param ram_base       Guest physical RAM base address
+ * @param ram_size       Guest RAM size in bytes
+ */
+void tcg_vcpu_enable_mmu(sv_vcpu_t *vcpu, uint64_t virt_pc,
+                          uint64_t ram_base, uint64_t ram_size);
 
 #endif /* SILICONV_TCG_H */

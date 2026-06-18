@@ -1,18 +1,26 @@
 /*
  * SiliconV — TCG MMU (Memory Management Unit)
  *
- * Handles guest memory access resolution:
- *   - RAM access → direct pointer into vm->ram
- *   - MMIO access → exit to machine.c MMIO dispatch
+ * Implements ARMv8 stage-1 address translation for the TCG backend.
  *
- * The guest physical address space layout (from MMIO spec):
- *   0x00000000 - 0x03ffffff : NOR flash (QEMU virt)
- *   0x08000000 - 0x0800ffff : GICv3 Distributor
- *   0x080a0000 - 0x080bffff : GICv3 Redistributor
- *   0x09000000 - 0x09000fff : PL011 UART
- *   0x0a000000 - 0x0a00ffff : virtio MMIO
- *   0x10000000 - 0x3efeffff : PCIe MMIO
- *   0x40000000 - ...        : DRAM (config.ram_base, default 16GB)
+ * APPROACH:
+ * For initial XNU boot, we DON'T create real hardware page tables.
+ * Instead, we use a software translation function that applies a
+ * fixed formula:
+ *
+ *   For kernel space VAs (TTBR1, bits[63:48] = 0xFFFF):
+ *     PA = VA - kernel_virt_base + kernel_phys_base
+ *     (This maps kernel's linked VA addresses to the physical RAM)
+ *
+ *   For all other VAs (identity/physical space):
+ *     PA = VA  (identity mapping)
+ *
+ * This matches what iBoot's page tables would provide: an identity
+ * mapping of physical memory in TTBR0, and a linear mapping of the
+ * kernel in TTBR1.
+ *
+ * When the kernel later sets up its own page tables (by writing to
+ * TTBR0/TTBR1), we'll switch to real page table walking.
  */
 
 #include "tcg.h"
@@ -21,77 +29,147 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
-/* ── MMIO address ranges ───────────────────────────────── */
-static inline bool is_mmio(uint64_t addr, tcg_vm_t *vm)
+/* ── Global state for software MMU translation ──────────── */
+/* These are set up by machine_apple.c before booting the kernel */
+static uint64_t g_kernel_virt_base = 0;
+static uint64_t g_kernel_phys_base = 0;
+static uint64_t g_ram_base = 0;
+static uint64_t g_ram_size = 0;
+
+void tcg_mmu_set_identity_map(uint64_t kernel_virt_base,
+                               uint64_t kernel_phys_base,
+                               uint64_t ram_base,
+                               uint64_t ram_size)
 {
-    uint64_t ram_base = vm->config.ram_base;
-    uint64_t ram_end  = ram_base + vm->ram_size;
+    g_kernel_virt_base = kernel_virt_base;
+    g_kernel_phys_base = kernel_phys_base;
+    g_ram_base = ram_base;
+    g_ram_size = ram_size;
 
-    /* RAM range: direct access */
-    if (addr >= ram_base && addr + 8 <= ram_end) return false;
-
-    /* Everything below RAM base is MMIO (devices) */
-    if (addr < ram_base) return true;
-
-    /* Above RAM is MMIO */
-    return true;
+    printf("tcg_mmu: identity map configured:\n");
+    printf("  kernel VA=0x%lx → PA=0x%lx\n",
+           (unsigned long)kernel_virt_base,
+           (unsigned long)kernel_phys_base);
+    printf("  RAM: 0x%lx .. 0x%lx\n",
+           (unsigned long)ram_base,
+           (unsigned long)(ram_base + ram_size));
 }
 
-/* ── MMIO Access ────────────────────────────────────────── */
-/* These functions handle MMIO reads/writes through the
- * machine.c callback mechanism */
-
-static uint64_t do_mmio_read(tcg_vcpu_t *vcpu, uint64_t addr, int size)
-{
-    tcg_vm_t *vm = vcpu->vm;
-    if (!vm->mmio_read) return 0;
-
-    uint64_t data = vm->mmio_read(vm->callback_opaque, addr, size);
-
-    /* UART output capture for debugging */
-    if (addr >= 0x09000000 && addr < 0x09001000) {
-        /* Reads from UART are rare but legitimate (status regs) */
-    }
-
-    return data;
-}
-
-static void do_mmio_write(tcg_vcpu_t *vcpu, uint64_t addr, uint64_t value, int size)
-{
-    tcg_vm_t *vm = vcpu->vm;
-    if (!vm->mmio_write) return;
-
-    vm->mmio_write(vm->callback_opaque, addr, value, size);
-
-    /* UART output capture for debugging */
-    if (addr >= 0x09000000 && addr < 0x09001000) {
-        /* machine_uart_tx will call putchar() */
-    }
-}
-
-/* ── Public: MMU Resolve ────────────────────────────────── */
-/* Returns:
- *   0 = RAM access completed (val populated for reads)
- *   1 = MMIO access (called into machine.c, val populated for reads)
- *  -1 = error
+/* ── Software virtual→physical translation ─────────────── */
+/*
+ * Translates a VA to PA using the identity map offset formula.
+ * This is used when MMU is disabled (SCTLR_EL1.M == 0) or as
+ * a fallback for simple boot scenarios.
+ *
+ * For kernel space (bit[47:48...63] = 0xFFFF...): apply offset
+ * For everything else: identity (PA = VA)
  */
+static int translate_identity(uint64_t virt_addr, uint64_t *phys_addr)
+{
+    /* Check if this is a kernel virtual address (TTBR1 space).
+     * With 48-bit VA, TTBR1 space starts at 0xFFFF000000000000 */
+    if ((virt_addr >> 48) == 0xFFFFULL) {
+        /* Kernel space: apply linear offset */
+        uint64_t offset_from_base = virt_addr - g_kernel_virt_base;
+        /* Handle the case where the VA is below kernel_virt_base but still in kernel space */
+        if (virt_addr >= g_kernel_virt_base) {
+            *phys_addr = g_kernel_phys_base + offset_from_base;
+        } else {
+            /* VA is in TTBR1 space but below the kernel's linked address.
+             * This might be BootArgs or other data mapped at a different offset.
+             * Use identity mapping as fallback. */
+            *phys_addr = virt_addr;
+        }
+    } else {
+        /* Identity mapping for all other addresses */
+        *phys_addr = virt_addr;
+    }
+    return 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ *  Public: MMU Address Translation
+ * ══════════════════════════════════════════════════════════════ */
+
+int tcg_mmu_translate(tcg_vcpu_t *vcpu, uint64_t virt_addr,
+                       tcg_mmu_result_t *result)
+{
+    memset(result, 0, sizeof(*result));
+
+    /* If MMU is enabled, check for real page tables */
+    if (vcpu->sctlr_el1 & 1) {
+        /* Check if the kernel has set up its own page tables */
+        uint64_t ttbr0 = vcpu->ttbr0_el1;
+        uint64_t ttbr1 = vcpu->ttbr1_el1;
+
+        /*
+         * If TTBR0/TTBR1 point to non-zero addresses, the kernel has set up
+         * its own page tables. In that case, we would need to walk them.
+         * For now, always use the identity/offset translation.
+         *
+         * FIXME: When the kernel sets TTBR0/TTBR1 to non-zero values pointing
+         * to its own page tables, we should walk them instead of using the
+         * identity formula. For initial boot, the offset formula suffices.
+         */
+        (void)ttbr0;
+        (void)ttbr1;
+    }
+
+    /* Use software identity translation */
+    if (g_kernel_virt_base != 0) {
+        translate_identity(virt_addr, &result->phys_addr);
+    } else {
+        /* No identity map configured — use bare address */
+        result->phys_addr = virt_addr;
+    }
+
+    /* Determine if the result is RAM or MMIO */
+    result->is_mmio = (result->phys_addr < g_ram_base ||
+                      result->phys_addr >= g_ram_base + g_ram_size);
+
+    return 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ *  Public: MMU Resolve (data access with translation)
+ * ══════════════════════════════════════════════════════════════ */
+
 int tcg_mmu_resolve(tcg_vcpu_t *vcpu, uint64_t addr, int size,
                      uint64_t *val, bool is_write)
 {
     tcg_vm_t *vm = vcpu->vm;
 
-    if (is_mmio(addr, vm)) {
-        if (is_write) {
-            do_mmio_write(vcpu, addr, *val, size);
-        } else {
-            *val = do_mmio_read(vcpu, addr, size);
+    /* Translate virtual address if MMU is enabled */
+    uint64_t phys_addr = addr;
+    if (vcpu->sctlr_el1 & 1) {
+        tcg_mmu_result_t tr;
+        if (tcg_mmu_translate(vcpu, addr, &tr) < 0 || tr.fault) {
+            fprintf(stderr, "tcg: MMU translation fault at VA=0x%lx (PC=0x%lx, insn=%lu)\n",
+                    (unsigned long)addr, (unsigned long)(vcpu->pc),
+                    (unsigned long)vcpu->insn_count);
+            return -1;
         }
-        return 1; /* MMIO — caller should handle exit if needed */
+        phys_addr = tr.phys_addr;
+    }
+
+    /* Determine if this is MMIO */
+    uint64_t ram_base = vm->config.ram_base;
+    uint64_t ram_end  = ram_base + vm->ram_size;
+
+    if (phys_addr < ram_base || phys_addr + (uint64_t)size > ram_end) {
+        /* MMIO access — call through to machine.c dispatch */
+        if (is_write) {
+            vm->mmio_write(vm->callback_opaque, phys_addr, *val, size);
+        } else {
+            *val = vm->mmio_read(vm->callback_opaque, phys_addr, size);
+        }
+        return 1; /* MMIO */
     }
 
     /* RAM access */
-    uint64_t offset = addr - vm->config.ram_base;
+    uint64_t offset = phys_addr - ram_base;
 
     if (is_write) {
         switch (size) {
@@ -114,15 +192,37 @@ int tcg_mmu_resolve(tcg_vcpu_t *vcpu, uint64_t addr, int size,
     return 0; /* RAM access */
 }
 
-/* ── Public: MMU Read (instruction fetch) ───────────────── */
-int tcg_mmu_read(tcg_vm_t *vm, uint64_t addr, void *buf, int size)
-{
-    uint64_t offset = addr - vm->config.ram_base;
+/* ══════════════════════════════════════════════════════════════
+ *  Public: MMU Read (instruction fetch with translation)
+ * ══════════════════════════════════════════════════════════════ */
 
-    if (offset + size > vm->ram_size) {
-        /* Instruction fetch from MMIO space — unsupported */
-        fprintf(stderr, "tcg: instruction fetch from non-RAM at 0x%lx\n",
-                (unsigned long)addr);
+int tcg_mmu_read(tcg_vcpu_t *vcpu, uint64_t virt_addr, void *buf, int size)
+{
+    tcg_vm_t *vm = vcpu->vm;
+
+    /* Translate virtual address if MMU is enabled */
+    uint64_t phys_addr = virt_addr;
+    if (vcpu->sctlr_el1 & 1) {
+        tcg_mmu_result_t tr;
+        if (tcg_mmu_translate(vcpu, virt_addr, &tr) < 0 || tr.fault) {
+            fprintf(stderr, "tcg: instruction fetch translation fault at VA=0x%lx (PC=0x%lx)\n",
+                    (unsigned long)virt_addr, (unsigned long)(vcpu->pc));
+            return -1;
+        }
+        phys_addr = tr.phys_addr;
+
+        if (tr.is_mmio) {
+            fprintf(stderr, "tcg: instruction fetch from MMIO at PA=0x%lx\n",
+                    (unsigned long)phys_addr);
+            return -1;
+        }
+    }
+
+    /* Read from guest RAM */
+    uint64_t offset = phys_addr - vm->config.ram_base;
+    if (offset + (uint64_t)size > vm->ram_size) {
+        fprintf(stderr, "tcg: instruction fetch from non-RAM at PA=0x%lx\n",
+                (unsigned long)phys_addr);
         return -1;
     }
 

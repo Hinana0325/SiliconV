@@ -71,6 +71,63 @@ target_include_directories(sv_virtio_console PUBLIC
     devices/virtio-console devices/transport
 )
 
+# ── Apple Device Libraries ────────────────────────
+
+add_library(sv_apple_aic STATIC devices/apple-aic/apple_aic.c)
+target_include_directories(sv_apple_aic PUBLIC devices/apple-aic)
+
+add_library(sv_apple_uart STATIC devices/apple-uart/apple_uart.c)
+target_include_directories(sv_apple_uart PUBLIC devices/apple-uart)
+
+add_library(sv_apple_dart STATIC devices/apple-dart/apple_dart.c)
+target_include_directories(sv_apple_dart PUBLIC devices/apple-dart)
+
+add_library(sv_apple_sep STATIC devices/apple-sep/apple_sep.c)
+target_include_directories(sv_apple_sep PUBLIC devices/apple-sep)
+
+add_library(sv_apple_wdt STATIC devices/apple-wdt/apple_wdt.c)
+target_include_directories(sv_apple_wdt PUBLIC devices/apple-wdt)
+
+add_library(sv_apple_nvram STATIC devices/apple-nvram/apple_nvram.c)
+target_include_directories(sv_apple_nvram PUBLIC devices/apple-nvram)
+
+# ── Apple Boot Libraries ─────────────────────────
+
+add_library(sv_apple_img4 STATIC core/boot/apple/img4.c)
+target_include_directories(sv_apple_img4 PUBLIC core/boot/apple)
+target_link_libraries(sv_apple_img4 PUBLIC lzfse)
+
+add_library(sv_apple_macho STATIC core/boot/apple/macho.c)
+target_include_directories(sv_apple_macho PUBLIC core/boot/apple)
+
+add_library(sv_apple_dtre STATIC core/boot/apple/dtre.c)
+target_include_directories(sv_apple_dtre PUBLIC core/boot/apple)
+
+add_library(sv_apple_bootargs STATIC core/boot/apple/bootargs.c)
+target_include_directories(sv_apple_bootargs PUBLIC core/boot/apple)
+
+add_library(sv_apple_xnuboot STATIC core/boot/apple/xnu_boot.c)
+target_include_directories(sv_apple_xnuboot PUBLIC core/boot/apple)
+target_link_libraries(sv_apple_xnuboot PUBLIC
+    sv_apple_img4 sv_apple_macho sv_apple_dtre sv_apple_bootargs
+)
+
+add_library(sv_machine_apple STATIC core/vm/machine_apple.c)
+target_include_directories(sv_machine_apple PUBLIC
+    core/vm core/irq core/memory core/object
+    devices/apple-aic devices/apple-uart devices/apple-dart
+    devices/apple-sep devices/apple-wdt devices/apple-nvram
+    devices/transport devices/virtio-blk devices/virtio-net
+    devices/virtio-console
+    core/boot/apple
+    hypervisor/abstraction
+)
+target_link_libraries(sv_machine_apple PUBLIC
+    sv_apple_aic sv_apple_uart sv_apple_dart sv_apple_sep
+    sv_apple_wdt sv_apple_nvram sv_apple_xnuboot
+    sv_psci sv_virtio sv_virtio_blk sv_virtio_net sv_virtio_console
+)
+
 # ── Hypervisor ────────────────────────────────────
 
 add_library(sv_hv STATIC hypervisor/abstraction/hv.c)
@@ -111,6 +168,10 @@ add_executable(sv-cli frontend/cli/main.c)
 target_link_libraries(sv-cli
     sv_machine sv_bootimg sv_gic sv_psci sv_dtb
     sv_uart sv_virtio sv_virtio_blk sv_virtio_net sv_virtio_console sv_hv
+    sv_machine_apple
+    sv_apple_aic sv_apple_uart sv_apple_dart sv_apple_sep
+    sv_apple_wdt sv_apple_nvram
+    sv_apple_img4 sv_apple_macho sv_apple_dtre sv_apple_bootargs sv_apple_xnuboot
 )
 if(SV_HAS_KVM)
     target_link_libraries(sv-cli sv_hv_kvm)
@@ -148,6 +209,16 @@ if(SV_BUILD_TESTS)
     target_link_libraries(test_virtio_mmio sv_virtio sv_gic)
     add_test(NAME test_virtio_mmio COMMAND test_virtio_mmio)
     set_tests_properties(test_virtio_mmio PROPERTIES LABELS unit)
+
+    add_executable(test_apple_aic tests/unit/test_apple_aic.c)
+    target_link_libraries(test_apple_aic sv_apple_aic)
+    add_test(NAME test_apple_aic COMMAND test_apple_aic)
+    set_tests_properties(test_apple_aic PROPERTIES LABELS unit)
+
+    add_executable(test_apple_xnuboot tests/unit/test_apple_xnuboot.c)
+    target_link_libraries(test_apple_xnuboot sv_apple_img4 sv_apple_bootargs)
+    add_test(NAME test_apple_xnuboot COMMAND test_apple_xnuboot)
+    set_tests_properties(test_apple_xnuboot PROPERTIES LABELS unit)
 endif()
 
 # ── Boot Stub (ARM64 cross-compile) ───────────────

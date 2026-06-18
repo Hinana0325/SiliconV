@@ -414,9 +414,9 @@ static int setup_vcpu(const sv_hv_ops_t *hv, sv_vcpu_t *vcpu,
         return -1;
     if (hv->vcpu_set_reg(vcpu, 1, cpu_id) < 0)    /* x1 = CPU ID */
         return -1;
-    if (hv->vcpu_set_reg(vcpu, 31, kernel_entry) < 0)  /* PC */
+    if (hv->vcpu_set_reg(vcpu, 32, kernel_entry) < 0)  /* PC (reg 32) */
         return -1;
-    if (hv->vcpu_set_reg(vcpu, 32, CPSR_EL1h_DAIF_MASKED) < 0)  /* CPSR */
+    if (hv->vcpu_set_reg(vcpu, 33, CPSR_EL1h_DAIF_MASKED) < 0)  /* PSTATE (reg 33) */
         return -1;
     return 0;
 }

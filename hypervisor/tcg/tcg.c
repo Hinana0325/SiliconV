@@ -158,6 +158,60 @@ int tcg_vcpu_set_reg(sv_vcpu_t *vcpu_, uint64_t reg, uint64_t val)
     return 0;
 }
 
+/* ── TCG-specific: Enable MMU for kernel boot ──────────── */
+void tcg_vcpu_enable_mmu(sv_vcpu_t *vcpu_, uint64_t virt_pc,
+                          uint64_t ram_base, uint64_t ram_size)
+{
+    tcg_vcpu_t *vcpu = (tcg_vcpu_t *)vcpu_;
+    if (!vcpu) return;
+
+    /* Set PC to the virtual entry point */
+    vcpu->pc = virt_pc;
+    vcpu->virt_pc = virt_pc;
+
+    /* Set MMU control registers (standard values for XNU boot) */
+
+    /* TCR_EL1: 48-bit VA, 4KB granule, inner/outer WBWA, inner shareable */
+    vcpu->tcr_el1 =
+        (16ULL << 0)  | /* T0SZ = 16 (48-bit VA) */
+        (16ULL << 16) | /* T1SZ = 16 (48-bit VA) */
+        (1ULL  << 8)  | /* IRGN0 = 01 (Normal WB, RW alloc) */
+        (1ULL  << 10) | /* ORGN0 = 01 */
+        (3ULL  << 12) | /* SH0 = 11 (Inner Shareable) */
+        (0ULL  << 14) | /* TG0 = 00 (4KB) */
+        (1ULL  << 24) | /* IRGN1 = 01 */
+        (1ULL  << 26) | /* ORGN1 = 01 */
+        (3ULL  << 28) | /* SH1 = 11 */
+        (0ULL  << 30);  /* TG1 = 00 (4KB) */
+
+    /* MAIR_EL1: attrs for Normal (index 0) and Device (index 1) */
+    /* attr 0 = 0xFF (Normal WBRA WRWA), attr 1 = 0x00 (Device-nGnRnE) */
+    vcpu->mair_el1 = (0xFFULL << (8*0)) | (0x04ULL << (8*1));
+
+    /* TTBR0_EL1: identity-map can be 0; our soft translator handles it.
+     * We set it to a non-zero dummy to indicate "software tables active". */
+    vcpu->ttbr0_el1 = 0;
+    vcpu->ttbr1_el1 = 0;
+
+    /* Enable MMU and caches in SCTLR_EL1:
+     *   M (bit 0) = 1 (MMU enabled)
+     *   C (bit 2) = 1 (data cache enabled)
+     *   I (bit 12) = 1 (instruction cache enabled)
+     *   WXN (bit 19) = 0 (writable implies XN? No)
+     *   SA (bit 3) = 0 (SP alignment check off)
+     */
+    vcpu->sctlr_el1 = (1 << 0) | (1 << 2) | (1 << 12);
+
+    /* VBAR_EL1: set to 0 (will be updated by kernel) */
+    vcpu->vbar_el1 = 0;
+
+    (void)ram_base;
+    (void)ram_size;
+
+    printf("tcg: vCPU %d MMU enabled (VA PC = 0x%lx)\n",
+           vcpu->id, (unsigned long)virt_pc);
+}
+
 /* ── Initialization / Shutdown ─────────────────────────── */
 int tcg_init(void)
 {
