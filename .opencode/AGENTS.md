@@ -149,6 +149,34 @@ CPSR = EL1h with masked DAIF. Supports raw kernel binaries and Android boot.img
 | 4 | 🔄 In Progress | AOSP init boot (initramfs, chroot, selinux_setup handoff) |
 | 5–6 | — | SurfaceFlinger, first light |
 
+### Phase 4 Setup (GSI Required)
+
+GSI (Generic System Image, ~2GB) is needed for AOSP boot. Automatic download may fail;
+use one of these methods:
+
+```bash
+# Method 1: Manual download (recommended if auto fails)
+# Browse: https://developer.android.google.cn/topic/generic-system-image/releases
+# Download "ARM64+VF userdebug" for Android 14 or 15
+# Place system.img + boot.img in:
+mkdir -p build/gsi
+# → copy system.img, boot.img into build/gsi/
+
+# Method 2: Automatic download (Google CI)
+./scripts/download_gsi.sh userdebug 14
+
+# Method 3: Skip GSI — build minimal rootfs only
+sudo ./scripts/create_rootfs.sh
+
+# After GSI is in place, build all images:
+./scripts/build_android_images.sh           # needs build/gsi/system.img
+./scripts/build_android_images.sh --skip-system  # vendor/userdata/cache/metadata only
+
+# Full AOSP boot test (GSI required):
+./scripts/test_android_qemu.sh              # full mode
+./scripts/test_android_qemu.sh quick        # 60s timeout
+```
+
 Key principle: **AOSP GSI first, vendor ROMs never until SiliconV is stable.**
 
 ## CI (GitHub Actions)
@@ -160,6 +188,23 @@ Key principle: **AOSP GSI first, vendor ROMs never until SiliconV is stable.**
 | `release.yml` | Tag push `v*` | Builds x86_64 + ARM64 Linux tarballs, creates GitHub release |
 
 **CI runs only on Linux** — no macOS runner. HVF/TCG backends tested manually.
+
+## Apple Profile Device Summary
+
+| Device | File | Status | Notes |
+|--------|------|--------|-------|
+| AIC | `devices/apple-aic/` | ✅ Done | Interrupt controller (replaces GICv3) |
+| S5L UART | `devices/apple-uart/` | ✅ Done | Serial console (replaces PL011) |
+| DART×2 | `devices/apple-dart/` | ✅ Done | IOMMU, 2 instances |
+| SEP | `devices/apple-sep/` | ✅ Done | Secure Enclave |
+| WDT | `devices/apple-wdt/` | ✅ Done | Watchdog timer |
+| NVRAM | `devices/apple-nvram/` | ✅ Done | Persistent storage |
+| Timer | `devices/apple-timer/` | ✅ Done | 64-bit counter + 4 comparators |
+| GPIO | `devices/apple-gpio/` | ✅ Done | 256-pin controller |
+| I2C | `devices/apple-i2c/` | ✅ Done | Bus controller |
+| SPMI | `devices/apple-spmi/` | ✅ Done | Power management (simulated PMIC) |
+| Virtio-GPU | `devices/virtio-gpu/` | ⬜ Stub | Not yet implemented |
+| WHPX backend | `hypervisor/whpx/` | ⬜ Stub | Not yet implemented |
 
 ## Conventions & Gotchas
 

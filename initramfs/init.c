@@ -39,7 +39,9 @@ static void write_file(const char *path, const char *content)
         fprintf(stderr, "initramfs: cannot create %s: %s\n", path, strerror(errno));
         return;
     }
-    write(fd, content, strlen(content));
+    if (write(fd, content, strlen(content)) < 0) {
+        /* Best-effort write — errors logged by caller */
+    }
     close(fd);
 }
 
@@ -156,7 +158,8 @@ int main(int argc, char *argv[])
                 char buf[4096];
                 ssize_t n;
                 while ((n = read(sfd, buf, sizeof(buf))) > 0) {
-                    write(dfd, buf, (size_t)n);
+                    if (write(dfd, buf, (size_t)n) < 0)
+                        break;
                 }
                 close(dfd);
                 fprintf(stderr, "initramfs: precompiled_sepolicy installed\n");
@@ -256,11 +259,15 @@ int main(int argc, char *argv[])
     mount("tmpfs", "/sysroot/apex", "tmpfs", 0, NULL);
     mkdir("/sysroot/apex/com.android.runtime", 0755);
     mkdir("/sysroot/apex/com.android.runtime/bin", 0755);
-    symlink("/system/bin/bootstrap/linker64",
-            "/sysroot/apex/com.android.runtime/bin/linker64");
+    if (symlink("/system/bin/bootstrap/linker64",
+                "/sysroot/apex/com.android.runtime/bin/linker64") < 0) {
+        fprintf(stderr, "initramfs: WARNING linker64 symlink failed\n");
+    }
     mkdir("/sysroot/apex/com.android.runtime/lib64", 0755);
-    symlink("/system/lib64/bootstrap/libc.so",
-            "/sysroot/apex/com.android.runtime/lib64/bionic/libc.so");
+    if (symlink("/system/lib64/bootstrap/libc.so",
+                "/sysroot/apex/com.android.runtime/lib64/bionic/libc.so") < 0) {
+        fprintf(stderr, "initramfs: WARNING libc.so symlink failed\n");
+    }
 
     /* /data - tmpfs for writable data */
     mount("tmpfs", "/sysroot/data", "tmpfs", 0, NULL);
