@@ -56,6 +56,12 @@ sudo mknod -m 666 "$BUILD_DIR/dev/null" c 1 3 2>/dev/null || true
 sudo mknod -m 666 "$BUILD_DIR/dev/console" c 5 1 2>/dev/null || true
 sudo mknod -m 600 "$BUILD_DIR/dev/ttyAMA0" c 204 64 2>/dev/null || true
 
+# Include patched init (with reboot disabled for debugging)
+if [ -f "${PROJECT_DIR}/initramfs/init_patched" ]; then
+    echo "  Including patched init (reboot disabled)..."
+    cp "${PROJECT_DIR}/initramfs/init_patched" "$BUILD_DIR/"
+fi
+
 # Include SELinux policy files
 mkdir -p "$BUILD_DIR/selinux_policy"
 

@@ -31,5 +31,9 @@ Thumbs.db
 /images/
 /kernel/out/
 
+# Built artifacts — initramfs / patched binaries
+/initramfs/init_patched
+/initramfs/*.cpio.gz
+
 # Core dumps
 core.*

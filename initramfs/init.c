@@ -242,18 +242,55 @@ int main(int argc, char *argv[])
      */
     mkdir("/sysroot/vendor/etc/init", 0755);
     mkdir("/sysroot/vendor/etc/init/hw", 0755);
-    write_file("/sysroot/vendor/etc/init/hw/init.siliconv.rc",
-               "# SiliconV VM init script\n"
-               "on early-init\n"
-               "    # VM device nodes already configured\n"
-               "\n"
-               "on init\n"
-               "    # No additional partitions to mount\n"
-               "    # All partitions are pre-mounted by initramfs\n"
-               "\n"
-               "on late-init\n"
-               "    # Start core services\n"
-               "    start ueventd\n");
+
+    /*
+     * DIAGNOSTIC: Bind-mount an EMPTY apexd.rc over /system/etc/init/apexd.rc.
+     * This removes the reboot_on_failure from apexd-bootstrap service,
+     * preventing the bootloader reboot if that IS the root cause.
+     *
+     * The real apexd-bootstrap (in /system/etc/init/apexd.rc) has:
+     *   reboot_on_failure reboot,bootloader,bootstrap-apexd-failed
+     *
+     * The main init.rc does:
+     *   on fs
+     *       exec_start apexd-bootstrap
+     *
+     * When apexd-bootstrap fails on tmpfs /data, the reboot_on_failure
+     * triggers bootloader reboot.
+     */
+    {
+        /* Create a minimal (or empty) replacement apexd.rc */
+        int fd = open("/apexd_override.rc", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd >= 0) {
+            /* Empty file = apexd.rc is completely ignored, no services defined */
+            close(fd);
+            fprintf(stderr, "initramfs: created /apexd_override.rc (empty)\n");
+        }
+        /* Bind-mount it over the system's apexd.rc */
+        if (mount("/apexd_override.rc",
+                  "/sysroot/system/etc/init/apexd.rc",
+                  NULL, MS_BIND, NULL) == 0) {
+            fprintf(stderr, "initramfs: bind-mounted empty apexd.rc (blocked bootloader reboot)\n");
+        } else {
+            fprintf(stderr, "initramfs: WARNING: bind-mount apexd.rc failed: %s\n",
+                    strerror(errno));
+        }
+    }
+
+    /*
+     * Bind-mount patched init binary over /system/bin/init to NOP the
+     * __reboot(ANDROID_RB_RESTART2, "bootloader") call at offset 0x110D98.
+     * Without this patch, init calls __reboot during `on early-init`
+     * which triggers a bootloader reboot.
+     */
+    if (mount("/init_patched",
+              "/sysroot/system/bin/init",
+              NULL, MS_BIND, NULL) == 0) {
+        fprintf(stderr, "initramfs: patched init binary bind-mounted (NOP __reboot)\n");
+    } else {
+        fprintf(stderr, "initramfs: WARNING patched init bind-mount failed: %s\n",
+                strerror(errno));
+    }
 
     /* /apex - tmpfs for APEX runtime overlays */
     mount("tmpfs", "/sysroot/apex", "tmpfs", 0, NULL);
@@ -302,12 +339,21 @@ int main(int argc, char *argv[])
 
     /*
      * Create /misc as tmpfs so bootloader_message writes don't fail.
-     * Init tries to write 'bootonce-bootloader' to /misc when it
-     * wants to reboot; if /misc doesn't exist, it still proceeds
-     * with the reboot anyway. But having /misc may prevent some
-     * early-init code paths from triggering the reboot. */
+     * Also create a zeroed BCB file inside for good measure. */
     mkdir("/sysroot/misc", 0755);
     mount("tmpfs", "/sysroot/misc", "tmpfs", 0, NULL);
+    {
+        /* Create a bootloader_message file for any code that reads BCB
+         * directly from /misc (rather than looking up a partition) */
+        int fd = open("/sysroot/misc/bootloader_message",
+                       O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd >= 0) {
+            char zeros[2048] = {0};
+            write(fd, zeros, sizeof(zeros));
+            close(fd);
+            fprintf(stderr, "initramfs: created /misc/bootloader_message (zeroed BCB)\n");
+        }
+    }
 
     /*
      * /dev/__properties__ for Android property service.
@@ -361,6 +407,28 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "initramfs: cmdline: %s\n", buf);
             }
             fclose(f);
+        }
+    }
+
+    /* Dump device-tree contents for debug */
+    {
+        fprintf(stderr, "initramfs: device-tree contents:\n");
+        FILE *fp = popen("find /proc/device-tree -type f 2>/dev/null | head -50", "r");
+        if (fp) {
+            char buf[256];
+            while (fgets(buf, sizeof(buf), fp)) {
+                buf[strcspn(buf, "\n")] = '\0';
+                fprintf(stderr, "  DT: %s\n", buf);
+            }
+            pclose(fp);
+        }
+        /* Also dump the firmware/android node if it exists */
+        fp = popen("ls -la /proc/device-tree/firmware/android/ 2>&1", "r");
+        if (fp) {
+            char buf[256];
+            while (fgets(buf, sizeof(buf), fp))
+                fprintf(stderr, "  DT/android: %s", buf);
+            pclose(fp);
         }
     }
 
