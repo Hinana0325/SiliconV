@@ -30,6 +30,7 @@
 #include "../../devices/apple-gpio/apple_gpio.h"
 #include "../../devices/apple-i2c/apple_i2c.h"
 #include "../../devices/apple-spmi/apple_spmi.h"
+#include "../../devices/apple-nvme/apple_nvme.h"
 #include "../boot/apple/xnu_boot.h"
 #include "../memory/dtb.h"
 #include "../object/psci.h"
@@ -52,6 +53,7 @@ typedef struct {
     apple_gpio_state_t  gpio;           /* General-purpose I/O */
     apple_i2c_state_t   i2c;            /* I2C bus controller */
     apple_spmi_state_t  spmi;           /* System Power Management Interface */
+    apple_nvme_state_t  nvme;           /* NVMe Storage Controller */
 
     /* PSCI (shared with Android profile) */
     psci_state_t        psci;
@@ -102,6 +104,10 @@ int sv_machine_apple_attach_virtio_blk(sv_machine_apple_t *vm,
                                         const char *image_path, bool read_only);
 int sv_machine_apple_attach_virtio_net(sv_machine_apple_t *vm);
 int sv_machine_apple_attach_virtio_console(sv_machine_apple_t *vm);
+
+/* Attach NVMe storage (Apple native) */
+int sv_machine_apple_attach_nvme(sv_machine_apple_t *vm,
+                                  const char *image_path, bool read_only);
 
 /* Run the VM */
 int sv_machine_apple_run(sv_machine_apple_t *vm);

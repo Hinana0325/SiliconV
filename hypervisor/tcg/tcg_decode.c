@@ -429,6 +429,8 @@ static int handle_msr(tcg_vcpu_t *vcpu, uint32_t sysreg, uint64_t val)
 int tcg_decode_exec(tcg_vcpu_t *vcpu, tcg_vm_t *vm, uint32_t insn)
 {
     /* ── Short instruction trace for boot debugging ── */
+    /* ── Instruction trace (disabled for production) ── */
+    #if 0
     if (vcpu->insn_count <= 120) {
         fprintf(stderr, "tcg: [%lu] 0x%08x at PC=0x%lx\n",
                 (unsigned long)vcpu->insn_count, insn,
@@ -437,6 +439,22 @@ int tcg_decode_exec(tcg_vcpu_t *vcpu, tcg_vm_t *vm, uint32_t insn)
 
     (void)vm; /* Used by MMU ops called indirectly */
     
+    /* ── ADR (PC-relative, byte) ─────────────────────────── */
+    /* ADR: 0xx10000_xxxxxxxxxxxxxxxxx_xxxxx
+     * bits[31:29] = 000 (ADR) or 001 (ADRP), bit28=1, bits[27:24]=0000
+     * ADR: top_nibble = 0x1 (op=0) or 0x3 (op=1)
+     * BUT: must also check bit28=1 and bits[27:24]=0000 to avoid
+     * colliding with LDR/STR (0x39/0x38/0x3C etc.) */
+    uint32_t top_nibble = bits(insn, 31, 28);
+    if ((top_nibble == 0x1 || top_nibble == 0x3) && bits(insn, 27, 24) == 0x0) {
+        uint8_t rd = bits(insn, 4, 0);
+        int64_t imm = ((int64_t)bits(insn, 23, 5) << 2) |
+                      (int64_t)bits(insn, 30, 29);
+        uint64_t insn_addr = vcpu->pc - 4;
+        vcpu->x[rd] = insn_addr + sext(imm, 21);
+        return 0;
+    }
+
     /* ── Data Processing (Immediate) ────────────────────── */
     /* DP-Immediate encoding spans four nibble values based on sf:op:S:bit28:
      *   immlo=0:     immlo=1:
@@ -449,7 +467,6 @@ int tcg_decode_exec(tcg_vcpu_t *vcpu, tcg_vm_t *vm, uint32_t insn)
      * Non-DP-Imm instructions that share these nibbles have dp_grp outside
      * 0x20-0x27 and fall through the switch harmlessly.
      */
-    uint32_t top_nibble = bits(insn, 31, 28);
     if (top_nibble == 0x9 || top_nibble == 0xB || top_nibble == 0xD || top_nibble == 0xF) {
     /* Use bits[28:23] (6 bits) for clean group dispatch:
      *   0x20-0x21 = ADRP     (PC-relative, page)
@@ -757,7 +774,7 @@ int tcg_decode_exec(tcg_vcpu_t *vcpu, tcg_vm_t *vm, uint32_t insn)
     /* LDR/STR (immediate, unsigned offset) */
     /* Encoding: x1x11001_00_xxxxxxxxxx_xxxxx */
     if ((insn & 0x3f000000) == 0x39000000) {
-        int size = bits(insn, 31, 30);  /* 0=byte, 1=half, 2=word, 3=double */
+        int size = bits(insn, 31, 30);
         int is_load = bit(insn, 22);
         uint8_t rn = bits(insn, 9, 5);
         uint8_t rt = bits(insn, 4, 0);

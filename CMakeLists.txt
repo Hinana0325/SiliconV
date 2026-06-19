@@ -103,6 +103,9 @@ target_include_directories(sv_apple_i2c PUBLIC devices/apple-i2c)
 add_library(sv_apple_spmi STATIC devices/apple-spmi/apple_spmi.c)
 target_include_directories(sv_apple_spmi PUBLIC devices/apple-spmi)
 
+add_library(sv_apple_nvme STATIC devices/apple-nvme/apple_nvme.c)
+target_include_directories(sv_apple_nvme PUBLIC devices/apple-nvme)
+
 # ── Apple Boot Libraries ─────────────────────────
 
 add_library(sv_apple_img4 STATIC core/boot/apple/img4.c)
@@ -130,6 +133,7 @@ target_include_directories(sv_machine_apple PUBLIC
     devices/apple-aic devices/apple-uart devices/apple-dart
     devices/apple-sep devices/apple-wdt devices/apple-nvram
     devices/apple-timer devices/apple-gpio devices/apple-i2c devices/apple-spmi
+    devices/apple-nvme
     devices/transport devices/virtio-blk devices/virtio-net
     devices/virtio-console
     core/boot/apple
@@ -138,7 +142,7 @@ target_include_directories(sv_machine_apple PUBLIC
 target_link_libraries(sv_machine_apple PUBLIC
     sv_apple_aic sv_apple_uart sv_apple_dart sv_apple_sep
     sv_apple_wdt sv_apple_nvram sv_apple_timer sv_apple_gpio
-    sv_apple_i2c sv_apple_spmi sv_apple_xnuboot
+    sv_apple_i2c sv_apple_spmi sv_apple_nvme sv_apple_xnuboot
     sv_psci sv_virtio sv_virtio_blk sv_virtio_net sv_virtio_console
 )
 
@@ -185,7 +189,7 @@ target_link_libraries(sv-cli
     sv_machine_apple
     sv_apple_aic sv_apple_uart sv_apple_dart sv_apple_sep
     sv_apple_wdt sv_apple_nvram sv_apple_timer sv_apple_gpio
-    sv_apple_i2c sv_apple_spmi
+    sv_apple_i2c sv_apple_spmi sv_apple_nvme
     sv_apple_img4 sv_apple_macho sv_apple_dtre sv_apple_bootargs sv_apple_xnuboot
 )
 if(SV_HAS_KVM)
@@ -234,6 +238,11 @@ if(SV_BUILD_TESTS)
     target_link_libraries(test_apple_xnuboot sv_apple_img4 sv_apple_bootargs)
     add_test(NAME test_apple_xnuboot COMMAND test_apple_xnuboot)
     set_tests_properties(test_apple_xnuboot PROPERTIES LABELS unit)
+
+    add_executable(test_apple_nvme tests/unit/test_apple_nvme.c)
+    target_link_libraries(test_apple_nvme sv_apple_nvme)
+    add_test(NAME test_apple_nvme COMMAND test_apple_nvme)
+    set_tests_properties(test_apple_nvme PROPERTIES LABELS unit)
 endif()
 
 # ── Boot Stub (ARM64 cross-compile) ───────────────

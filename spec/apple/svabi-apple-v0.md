@@ -67,6 +67,7 @@ See [apple-boot-flow.md](../boot/apple-boot-flow.md) for full details.
 - Apple PCIe
 - Apple AOP (Always-On Processor)
 - Apple PMU (Power Management)
+- Apple NVMe (storage controller) → v0 stub, minimal admin + I/O queue
 
 ## Limitations (v0)
 

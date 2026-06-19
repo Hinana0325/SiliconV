@@ -37,7 +37,8 @@ via per-CPU register banks.
 | 49 | Virtio-NET | SPI | Network device |
 | 50 | Virtio-CONSOLE | SPI | Console channel |
 | 51 | Virtio-BLK1 | SPI | Block device #1 |
-| 52-63 | Reserved | SPI | Future devices |
+| 52 | NVMe | SPI | NVMe storage controller |
+| 53-63 | Reserved | SPI | Future devices |
 
 ## IRQ Constants
 

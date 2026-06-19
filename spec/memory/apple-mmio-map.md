@@ -20,6 +20,7 @@ profile (SVABI-Apple v0).
 | **I2C0** | `0x03290000` | 64 KB | I2C Bus 0 |
 | **SPMI** | `0x032A0000` | 64 KB | SPMI Controller |
 | **PCIe** | `0x032B0000` | 64 KB | PCIe Host Bridge (stub) |
+| **NVMe** | `0x032C0000` | 128 KB | NVMe Storage Controller |
 | | | | |
 | **Virtio-BLK** | `0x20000000` | 64 KB | Block device (#0) |
 | **Virtio-NET** | `0x20010000` | 64 KB | Network device |

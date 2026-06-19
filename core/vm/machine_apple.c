@@ -53,6 +53,35 @@ static void apple_dev_lower_irq(void *aic_ctx, int irq)
     apple_aic_lower_irq(aic, irq);
 }
 
+/* ── NVMe DMA bridge (direct guest RAM access) ──── */
+static int nvme_dma_read_cb(void *ctx, uint64_t guest_phys,
+                             void *host_buf, size_t len)
+{
+    sv_machine_apple_t *vm = (sv_machine_apple_t *)ctx;
+    if (guest_phys < vm->ram_base ||
+        guest_phys + len > vm->ram_base + vm->ram_size) {
+        fprintf(stderr, "nvme_dma: read out of bounds 0x%lx\n",
+                (unsigned long)guest_phys);
+        return -1;
+    }
+    memcpy(host_buf, vm->ram + (guest_phys - vm->ram_base), len);
+    return 0;
+}
+
+static int nvme_dma_write_cb(void *ctx, uint64_t guest_phys,
+                              const void *host_buf, size_t len)
+{
+    sv_machine_apple_t *vm = (sv_machine_apple_t *)ctx;
+    if (guest_phys < vm->ram_base ||
+        guest_phys + len > vm->ram_base + vm->ram_size) {
+        fprintf(stderr, "nvme_dma: write out of bounds 0x%lx\n",
+                (unsigned long)guest_phys);
+        return -1;
+    }
+    memcpy(vm->ram + (guest_phys - vm->ram_base), host_buf, len);
+    return 0;
+}
+
 /* ── MMIO dispatch callbacks ────────────────────── */
 static uint64_t machine_apple_mmio_read(void *opaque, uint64_t addr, int size)
 {
@@ -87,6 +116,7 @@ static uint64_t apple_dispatch_read(sv_machine_apple_t *vm, uint64_t addr, uint6
     case 8:  return apple_gpio_mmio_read(&vm->gpio, off, 4);
     case 9:  return apple_i2c_mmio_read(&vm->i2c, off, 4);
     case 10: return apple_spmi_mmio_read(&vm->spmi, off, 4);
+    case 11: return apple_nvme_mmio_read(&vm->nvme, off, 4);
     default: return 0;
     }
 }
@@ -108,6 +138,7 @@ static void apple_dispatch_write(sv_machine_apple_t *vm, uint64_t addr, uint64_t
     case 8:  apple_gpio_mmio_write(&vm->gpio, off, value, 4); break;
     case 9:  apple_i2c_mmio_write(&vm->i2c, off, value, 4); break;
     case 10: apple_spmi_mmio_write(&vm->spmi, off, value, 4); break;
+    case 11: apple_nvme_mmio_write(&vm->nvme, off, value, 4); break;
     default: break;
     }
 }
@@ -132,6 +163,7 @@ static apple_mmio_region_t apple_mmio_regions[] = {
     { SV_APPLE_GPIO_BASE,    SV_APPLE_GPIO_BASE + SV_APPLE_GPIO_SIZE - 1,   "gpio",   8 },
     { SV_APPLE_I2C0_BASE,    SV_APPLE_I2C0_BASE + SV_APPLE_I2C0_SIZE - 1,   "i2c0",   9 },
     { SV_APPLE_SPMI_BASE,    SV_APPLE_SPMI_BASE + SV_APPLE_SPMI_SIZE - 1,   "spmi",  10 },
+    { SV_APPLE_NVME_BASE,    SV_APPLE_NVME_BASE + SV_APPLE_NVME_SIZE - 1,   "nvme",  11 },
 };
 #define APPLE_NUM_MMIO_REGIONS (sizeof(apple_mmio_regions)/sizeof(apple_mmio_regions[0]))
 
@@ -189,6 +221,11 @@ int sv_machine_apple_init(sv_machine_apple_t *vm, int num_cpus, uint64_t ram_siz
     /* SPMI (power management) */
     apple_spmi_init(&vm->spmi);
 
+    /* NVMe (storage controller) */
+    apple_nvme_init(&vm->nvme);
+    apple_nvme_set_irq_ctx(&vm->nvme, &vm->aic);
+    apple_nvme_set_irq_callbacks(&vm->nvme, apple_dev_raise_irq, apple_dev_lower_irq);
+
     /* PSCI */
     psci_init(&vm->psci, num_cpus);
 
@@ -204,7 +241,7 @@ int sv_machine_apple_init(sv_machine_apple_t *vm, int num_cpus, uint64_t ram_siz
 
     printf("sv_apple: Apple VM initialized (%d CPUs, %lu MB RAM)\n",
            num_cpus, (unsigned long)(ram_size / (1024 * 1024)));
-    printf("sv_apple: AIC, S5L UART, DART, SEP, WDT, NVRAM, Timer, GPIO, I2C, SPMI ready\n");
+    printf("sv_apple: AIC, S5L UART, DART, SEP, WDT, NVRAM, Timer, GPIO, I2C, SPMI, NVMe ready\n");
 
     return 0;
 }
@@ -217,6 +254,8 @@ void sv_machine_apple_destroy(sv_machine_apple_t *vm)
         virtio_net_destroy(&vm->virtio_net);
     if (vm->virtio_console_enabled)
         virtio_console_destroy(&vm->virtio_console);
+
+    apple_nvme_destroy(&vm->nvme);
 
     if (vm->ram)
         free(vm->ram);
@@ -295,6 +334,20 @@ int sv_machine_apple_attach_virtio_console(sv_machine_apple_t *vm)
         vm->virtio_console_enabled = true;
     }
     return ret;
+}
+
+/* ── NVMe Storage ──────────────────────────────── */
+int sv_machine_apple_attach_nvme(sv_machine_apple_t *vm,
+                                  const char *image_path, bool read_only)
+{
+    /* Wire DMA through guest RAM (direct access, bypassing DART for now) */
+    apple_nvme_set_dma(&vm->nvme, nvme_dma_read_cb, nvme_dma_write_cb, vm);
+
+    if (apple_nvme_attach_disk(&vm->nvme, image_path, read_only) < 0)
+        return -1;
+
+    printf("sv_apple: NVMe storage attached\n");
+    return 0;
 }
 
 /* ── MMIO Dispatch ──────────────────────────────── */
@@ -496,6 +549,7 @@ int sv_machine_apple_run(sv_machine_apple_t *vm)
         hv->mmio_register(hvm, SV_APPLE_GPIO_BASE, SV_APPLE_GPIO_SIZE, &dummy);
         hv->mmio_register(hvm, SV_APPLE_I2C0_BASE, SV_APPLE_I2C0_SIZE, &dummy);
         hv->mmio_register(hvm, SV_APPLE_SPMI_BASE, SV_APPLE_SPMI_SIZE, &dummy);
+        hv->mmio_register(hvm, SV_APPLE_NVME_BASE, SV_APPLE_NVME_SIZE, &dummy);
     }
 
     /* Load kernel/bootargs into backend RAM */

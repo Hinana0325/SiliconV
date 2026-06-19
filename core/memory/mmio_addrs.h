@@ -124,6 +124,11 @@
 #define SV_APPLE_SPMI_BASE      0x032A0000ULL
 #define SV_APPLE_SPMI_SIZE      0x00010000ULL
 
+/* ── Apple NVMe (Storage Controller) ────────────── */
+#define SV_APPLE_NVME_BASE      0x032C0000ULL
+#define SV_APPLE_NVME_SIZE      0x00020000ULL   /* 128 KB (64K regs + 64K doorbell) */
+#define SV_APPLE_NVME_END       (SV_APPLE_NVME_BASE + SV_APPLE_NVME_SIZE - 1)
+
 /* ── Guest RAM (Apple profile) ──────────────────── */
 #define SV_APPLE_RAM_BASE       0x800000000ULL   /* 32 GB */
 #define SV_APPLE_RAM_DEFAULT    0x200000000ULL   /* 8 GB default */
@@ -173,6 +178,7 @@
 #define SV_IRQ_APPLE_SPMI       41
 #define SV_IRQ_APPLE_PCIE       42
 #define SV_IRQ_APPLE_TIMER      43
+#define SV_IRQ_APPLE_NVME       52
 
 /* ── Apple Virtio IRQs ─────────────────────────── */
 #define SV_IRQ_APPLE_VIRTIO_BLK0    48
